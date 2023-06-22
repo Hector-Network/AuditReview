@@ -5,7 +5,6 @@ import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
@@ -14,14 +13,14 @@ error INVALID_DAO_FEE();
 error INVALID_FEES();
 error INVALID_TRANSFER_ETH();
 error DAO_FEE_FAILED();
+error MUST_QUEUE();
+error QUEUE_NOT_EXPIRED();
 
 /**
  * @title HecBridgeSplitter
  */
 contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	using SafeERC20Upgradeable for IERC20Upgradeable;
-	using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
-
 	// Struct Asset Info
 	struct SendingAssetInfo {
 		bytes callData;
@@ -33,10 +32,22 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	// State variables
 	uint256 public CountDest; // Count of the destination wallets
-	uint public minFeePercentage;
+	uint256 public minFeePercentage;
 	address public DAO; // DAO wallet for taking fee
 	string public version;
-	EnumerableSetUpgradeable.AddressSet private _callAddresses;
+
+	enum MANAGING { RESERVE_BRIDGES, RESERVE_BRIDGE_ASSETS }
+	uint256 public blocksNeededForQueue;
+	uint256 constant public MINQUEUETIME = 28800; // 8 hours
+
+
+	address[] public reserveBridges; 
+    mapping( address => bool ) public isReserveBridge;
+    mapping( address => uint ) public reserveBridgeQueue; // Delays changes to mapping.
+
+	address[] public reserveBridgeAssets; 
+    mapping( address => bool ) public isReserveBridgeAsset;
+    mapping( address => uint ) public reserveBridgeAssetQueue; // Delays changes to mapping.
 
 	// Events
 	event SetCountDest(uint256 oldCountDest, uint256 newCountDest, address indexed user);
@@ -49,6 +60,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	event RemoveCallAddress(address _callAddress, address _owner);
 	event ApproveToken(address _srcToken, address _callAddress, uint256 _amount);
 
+	event ChangeQueued( MANAGING indexed managing, address queued );
+	event ChangeActivated( MANAGING indexed managing, address activated, bool result );
+	event SetBlockQueue( uint256 oldBlockQueue, uint256 newBlockQueue );
+
 	/* ======== INITIALIZATION ======== */
 
 	/// @custom:oz-upgrades-unsafe-allow constructor
@@ -59,9 +74,12 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	/**
 	 * @dev sets initials
 	 */
-	function initialize(uint256 _CountDest) external initializer {
+	function initialize(uint256 _CountDest, uint256 _blocksNeededForQueue) external initializer {
 		if (_CountDest == 0) revert INVALID_PARAM();
+		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+
 		CountDest = _CountDest;
+		blocksNeededForQueue = _blocksNeededForQueue;
 		__Pausable_init();
 		__Ownable_init();
 	}
@@ -74,36 +92,6 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	function unpause() external onlyOwner {
 		_unpause();
-	}
-
-	// Functions
-	function addToWhiteList(address _callAddress) external onlyOwner {
-		require(!_callAddresses.contains(_callAddress), 'Address already exists');
-		_callAddresses.add(_callAddress);
-		emit AddCallAddress(_callAddress, msg.sender);
-	}
-
-	function removeFromWhiteList(address _callAddress) external onlyOwner {
-		require(_callAddresses.contains(_callAddress), 'Address does not exist');
-		_callAddresses.remove(_callAddress);
-		emit RemoveCallAddress(_callAddress, msg.sender);
-	}
-
-	function getWhiteListSize() external view returns (uint256) {
-		return _callAddresses.length();
-	}
-
-	function isInWhiteList(address _callAddress) public view returns (bool) {
-		return _callAddresses.contains(_callAddress);
-	}
-
-	function getWhiteListAtIndex(uint256 index) external view returns (address) {
-		require(index < _callAddresses.length(), 'Invalid index');
-		return _callAddresses.at(index);
-	}
-
-	function getAllWhiteList() external view returns (address[] memory) {
-		return _callAddresses.values();
 	}
 
 	///////////////////////////////////////////////////////
@@ -122,7 +110,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isInWhiteList(callTargetAddress),
+				isReserveBridge[ callTargetAddress ] &&
+				isReserveBridgeAsset[ sendingAsset ],
 			'Bridge: Invalid parameters'
 		);
 
@@ -227,6 +216,14 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit SetVersion(_version);
 	}
 
+	function setBlockQueue(uint256 _blocksNeededForQueue) external onlyOwner {
+		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		uint256 oldValue = blocksNeededForQueue;
+		blocksNeededForQueue = _blocksNeededForQueue;
+
+		emit SetBlockQueue(oldValue, _blocksNeededForQueue);
+	}
+
 	// Set Minimum Fee Percentage
 	function setMinFeePercentage(uint _feePercentage) external onlyOwner {
 		require(_feePercentage > 0 && _feePercentage < 1000, 'Invalid percentage');
@@ -257,5 +254,138 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		(bool success, ) = payable(DAO).call{value: amount}('');
 		if (!success) revert INVALID_TRANSFER_ETH();
 	}
+
+	/**
+        @notice queue address to change boolean in mapping
+        @param _managing MANAGING
+        @param _address address
+        @return bool
+     */
+    function queue( MANAGING _managing, address _address ) external onlyOwner returns ( bool ) {
+		if ( _address == address(0) ) revert INVALID_ADDRESS();
+        
+        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
+            reserveBridgeQueue[ _address ] = block.number + blocksNeededForQueue;
+        }  else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
+            reserveBridgeAssetQueue[ _address ] = block.number + blocksNeededForQueue;
+        }  
+        else return false;
+
+        emit ChangeQueued( _managing, _address );
+        return true;
+    }
+
+	/**
+        @notice verify queue then set boolean in mapping
+        @param _managing MANAGING
+        @param _address address
+        @return bool
+     */
+    function toggle( MANAGING _managing, address _address) external onlyOwner returns ( bool ) {
+
+        if ( _address == address(0) ) revert INVALID_ADDRESS();
+        bool result;
+        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
+            if ( requirements( reserveBridgeQueue, isReserveBridge, _address ) ) {
+                reserveBridgeQueue[ _address ] = 0;
+                if( !listContains( reserveBridges, _address ) ) {
+                    reserveBridges.push( _address );
+                }
+            }
+            result = !isReserveBridge[ _address ];
+            isReserveBridge[ _address ] = result;
+            
+        } else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
+            if ( requirements( reserveBridgeAssetQueue, isReserveBridgeAsset, _address ) ) {
+                reserveBridgeAssetQueue[ _address ] = 0;
+                if( !listContains( reserveBridgeAssets, _address ) ) {
+                    reserveBridgeAssets.push( _address );
+                }
+            }
+            result = !isReserveBridgeAsset[ _address ];
+            isReserveBridgeAsset[ _address ] = result;
+
+        } 
+		else return false;
+
+        emit ChangeActivated( _managing, _address, result );
+        return true;
+    }
+
+	/**
+        @notice remove bridge contract from whitelist
+        @param _address address
+        @return bool
+     */
+	function removeReserveBridge(address _address) external onlyOwner returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
+
+		uint256 length = reserveBridges.length;
+		for (uint256 i = 0; i < length; i++) {
+			if (reserveBridges[i] == _address) {
+				reserveBridges[i] = reserveBridges[length - 1];
+				reserveBridges.pop();
+
+				isReserveBridge[_address] = false;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+        @notice remove bridge token asset from whitelist
+        @param _address address
+        @return bool
+     */
+	function removeReserveBridgeAsset(address _address) external onlyOwner returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
+
+		uint256 length = reserveBridgeAssets.length;
+		for (uint256 i = 0; i < length; i++) {
+			if (reserveBridgeAssets[i] == _address) {
+				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
+				reserveBridgeAssets.pop();
+
+				isReserveBridgeAsset[_address] = false;
+				return true;
+			}
+		}
+		return false;
+	}
+
+    /**
+        @notice checks requirements and returns altered structs
+        @param queue_ mapping( address => uint )
+        @param status_ mapping( address => bool )
+        @param _address address
+        @return bool 
+     */
+    function requirements( 
+        mapping( address => uint ) storage queue_, 
+        mapping( address => bool ) storage status_, 
+        address _address 
+    ) internal view returns ( bool ) {
+        if ( !status_[ _address ] ) {
+			if (queue_[ _address ] == 0) revert MUST_QUEUE();
+			if (queue_[ _address ] > block.number) revert QUEUE_NOT_EXPIRED();            
+            return true;
+        } return false;
+    }
+
+    /**
+        @notice checks array to ensure against duplicate
+        @param _list address[]
+        @param _token address
+        @return bool
+     */
+    function listContains( address[] storage _list, address _token ) internal view returns ( bool ) {
+        for( uint i = 0; i < _list.length; i++ ) {
+            if( _list[ i ] == _token ) {
+                return true;
+            }
+        }
+        return false;
+    }
 	
 }
