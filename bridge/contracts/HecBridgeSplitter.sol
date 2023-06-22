@@ -4,15 +4,15 @@ pragma solidity ^0.8.7;
 import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
-import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
-import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
 error INVALID_AMOUNT();
-error INVALID_ALLOWANCE();
 error INVALID_DAO_FEE();
 error INVALID_FEES();
+error INVALID_TRANSFER_ETH();
 error DAO_FEE_FAILED();
 
 /**
@@ -20,7 +20,7 @@ error DAO_FEE_FAILED();
  */
 contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	using SafeERC20Upgradeable for IERC20Upgradeable;
-	using EnumerableSet for EnumerableSet.AddressSet;
+	using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
 	// Struct Asset Info
 	struct SendingAssetInfo {
@@ -36,17 +36,18 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	uint public minFeePercentage;
 	address public DAO; // DAO wallet for taking fee
 	string public version;
-	EnumerableSet.AddressSet private _callAddresses;
+	EnumerableSetUpgradeable.AddressSet private _callAddresses;
 
 	// Events
 	event SetCountDest(uint256 oldCountDest, uint256 newCountDest, address indexed user);
-	event SetBridge(address newBridge, bool status, address indexed user);
 	event SetDAO(address oldDAO, address newDAO, address indexed user);
 	event MakeCallData(bool success, bytes callData, address indexed user);
 	event HectorBridge(address indexed user, SendingAssetInfo[] sendingAssetInfos);
-	event SendFeeToDAO(uint256 feeAmount, SendingAssetInfo[] sendingAssetInfos);
 	event SetVersion(string _version);
 	event SetMinFeePercentage(uint256 feePercentage);
+	event AddCallAddress(address _callAddress, address _owner);
+	event RemoveCallAddress(address _callAddress, address _owner);
+	event ApproveToken(address _srcToken, address _callAddress, uint256 _amount);
 
 	/* ======== INITIALIZATION ======== */
 
@@ -79,11 +80,13 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	function addToWhiteList(address _callAddress) external onlyOwner {
 		require(!_callAddresses.contains(_callAddress), 'Address already exists');
 		_callAddresses.add(_callAddress);
+		emit AddCallAddress(_callAddress, msg.sender);
 	}
 
 	function removeFromWhiteList(address _callAddress) external onlyOwner {
 		require(_callAddresses.contains(_callAddress), 'Address does not exist');
 		_callAddresses.remove(_callAddress);
+		emit RemoveCallAddress(_callAddress, msg.sender);
 	}
 
 	function getWhiteListSize() external view returns (uint256) {
@@ -179,6 +182,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			if (afterBalance - beforeBalance != totalAmounts) revert INVALID_AMOUNT();
 			// Approve targetAddress
 			srcToken.approve(callTargetAddress, sendAmounts);
+			emit ApproveToken(address(srcToken), callTargetAddress, sendAmounts);
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
@@ -244,4 +248,14 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			}
 		}
 	}
+
+	// Withdraw ETH
+	function withdrawETH(uint256 amount) external onlyOwner {
+		if(amount > address(this).balance) {
+			amount = address(this).balance;
+		}
+		(bool success, ) = payable(DAO).call{value: amount}('');
+		if (!success) revert INVALID_TRANSFER_ETH();
+	}
+	
 }
