@@ -85,7 +85,7 @@ async function main() {
     console.log(execsync(cmdForDeployBoba).toString());
     console.log("Done")
     //17
-    console.log('deploying on the Boba network...');
+    console.log('deploying on the Velas network...');
     const cmdForDeployVelas = `hardhat run ./scripts/deploymentScripts/velas.ts --network velas`;
     console.log(execsync(cmdForDeployVelas).toString());
     console.log("Done")

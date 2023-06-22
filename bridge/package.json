@@ -16,7 +16,8 @@
     "unit-test-squid": "hardhat test ./test/bridge.squid.test.ts --network ftm",
     "test": "hardhat test --network ftm",
     "deploy-pure":"npx hardhat run ./scripts/deployImplementation.ts --network ftm",
-    "deploy-all":"npx hardhat run ./scripts/deployAll.ts"
+    "deploy-all":"npx hardhat run ./scripts/deployAll.ts",
+    "transfer-all": "npx hardhat run ./scripts/transferOwnership.ts"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.12",
