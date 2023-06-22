@@ -6,7 +6,6 @@ import 'solidity-coverage';
 import 'hardhat-deploy';
 import '@nomiclabs/hardhat-etherscan';
 import 'hardhat-gas-reporter';
-
 require('@openzeppelin/hardhat-upgrades');
 require('dotenv').config();
 

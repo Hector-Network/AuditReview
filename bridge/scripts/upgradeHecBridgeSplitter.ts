@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-const { ethers, upgrades } = require("hardhat");
+const { ethers, upgrades  } = require("hardhat");
 require("dotenv").config();
 
 // const UPGRADEABLE_PROXY = process.env.FTM_MAIN_SPLITTER_ADDRESS;

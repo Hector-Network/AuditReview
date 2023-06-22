@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { waitSeconds } from '../helper';
+import { waitSeconds } from '../../helper';
 const hre = require("hardhat");
 
 async function main() {
@@ -43,6 +43,7 @@ async function main() {
 	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(lifiBridge);
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(squidRouter);
+   
 }
 
 main().catch((error) => {

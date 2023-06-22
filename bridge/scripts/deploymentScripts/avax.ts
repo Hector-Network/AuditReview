@@ -9,7 +9,7 @@ async function main() {
 	const squidRouter = "0xce16f69375520ab01377ce7b88f5ba8c48f8d666";
 
 	const feePercentage = 75;
-	const DAO = "0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90";
+	const DAO = "0x078E3977b30955f4Af9AA1D9DeC4ceB660c36e0c";
 	const version = "2.0";
 
 	console.log("Deploying contracts with the account:", deployer.address);
