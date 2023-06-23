@@ -54,6 +54,21 @@ describe('Hector Bridge', function () {
         .withArgs(MANAGING.RESERVE_BRIDGES, lifiBridge);
     });
 
+    it('Queue Many request', async function () {
+      const txQueue = await hectorBridge.queueMany(MANAGING.RESERVE_BRIDGES, [
+        lifiBridge,
+        alice.address,
+      ]);
+
+      expect(
+        await hectorBridge.reserveBridgeQueue(lifiBridge)
+      ).to.be.greaterThan(0);
+
+      expect(
+        await hectorBridge.reserveBridgeQueue(alice.address)
+      ).to.be.greaterThan(0);
+    });
+
     it('Should Fail: update values before queue time is over', async function () {
       const txQueue = await hectorBridge.queue(
         MANAGING.RESERVE_BRIDGES,
@@ -154,6 +169,20 @@ describe('Hector Bridge', function () {
 
       expect(await hectorBridge.isReserveBridge(lifiBridge)).equal(false);
     });
+    it('Should Pass - Add many bridge contracts', async function () {
+      const txQueue = await hectorBridge.queueMany(MANAGING.RESERVE_BRIDGES, [
+        lifiBridge,
+        token.address,
+      ]);
+
+      await increaseTime(blocksNeededForQueue + 5);
+      const txToogle = await hectorBridge.toggleMany(MANAGING.RESERVE_BRIDGES, [
+        lifiBridge,
+        token.address,
+      ]);
+
+      expect(await hectorBridge.getReserveBridgesCount()).equal(3);
+    });
   });
 
   describe('#Test Bridge Assets Whitelisting', async () => {
@@ -166,6 +195,21 @@ describe('Hector Bridge', function () {
       await expect(txQueue)
         .to.emit(hectorBridge, 'ChangeQueued')
         .withArgs(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
+    });
+
+    it('Queue Many request', async function () {
+      const txQueue = await hectorBridge.queueMany(
+        MANAGING.RESERVE_BRIDGE_ASSETS,
+        [lifiBridge, alice.address]
+      );
+
+      expect(
+        await hectorBridge.reserveBridgeAssetQueue(lifiBridge)
+      ).to.be.greaterThan(0);
+
+      expect(
+        await hectorBridge.reserveBridgeAssetQueue(alice.address)
+      ).to.be.greaterThan(0);
     });
 
     it('Should Fail: update values before queue time is over', async function () {
@@ -199,6 +243,7 @@ describe('Hector Bridge', function () {
         .to.emit(hectorBridge, 'ChangeActivated')
         .withArgs(MANAGING.RESERVE_BRIDGE_ASSETS, token.address, true);
     });
+
     it('Should Fail - Add duplicated bridge asset', async function () {
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
@@ -271,6 +316,21 @@ describe('Hector Bridge', function () {
       expect(await hectorBridge.isReserveBridgeAsset(token.address)).equal(
         false
       );
+    });
+
+    it('Should Pass - Add many bridge tokens', async function () {
+      const txQueue = await hectorBridge.queueMany(
+        MANAGING.RESERVE_BRIDGE_ASSETS,
+        [lifiBridge, token.address]
+      );
+
+      await increaseTime(blocksNeededForQueue + 5);
+      const txToogle = await hectorBridge.toggleMany(
+        MANAGING.RESERVE_BRIDGE_ASSETS,
+        [lifiBridge, token.address]
+      );
+
+      expect(await hectorBridge.getReserveBridgeAssetsCount()).equal(3);
     });
   });
 
