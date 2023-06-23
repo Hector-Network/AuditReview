@@ -76,7 +76,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	 */
 	function initialize(uint256 _CountDest, uint256 _blocksNeededForQueue) external initializer {
 		if (_CountDest == 0) revert INVALID_PARAM();
-		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		if (_blocksNeededForQueue == 0) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
@@ -265,9 +265,9 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		if ( _address == address(0) ) revert INVALID_ADDRESS();
         
         if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
-            reserveBridgeQueue[ _address ] = block.number + blocksNeededForQueue;
+            reserveBridgeQueue[ _address ] = block.timestamp + blocksNeededForQueue;
         }  else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
-            reserveBridgeAssetQueue[ _address ] = block.number + blocksNeededForQueue;
+            reserveBridgeAssetQueue[ _address ] = block.timestamp + blocksNeededForQueue;
         }  
         else return false;
 
@@ -368,7 +368,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
     ) internal view returns ( bool ) {
         if ( !status_[ _address ] ) {
 			if (queue_[ _address ] == 0) revert MUST_QUEUE();
-			if (queue_[ _address ] > block.number) revert QUEUE_NOT_EXPIRED();            
+			if (queue_[ _address ] > block.timestamp) revert QUEUE_NOT_EXPIRED();            
             return true;
         } return false;
     }
