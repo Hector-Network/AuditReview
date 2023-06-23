@@ -23,7 +23,7 @@ async function main() {
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest],
+		[_countDest, 0],
 		{
 			gas: gas,
 			initializer: "initialize",
@@ -40,9 +40,13 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(lifiBridge);
+	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(squidRouter);
+	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
+	await waitSeconds(3);
+	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
+	await waitSeconds(3);
+	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
    
 }
 

@@ -170,8 +170,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			uint256 afterBalance = srcToken.balanceOf(address(this));
 			if (afterBalance - beforeBalance != totalAmounts) revert INVALID_AMOUNT();
 			// Approve targetAddress
-			srcToken.approve(callTargetAddress, sendAmounts);
-			emit ApproveToken(address(srcToken), callTargetAddress, sendAmounts);
+			require (srcToken.approve(callTargetAddress, sendAmounts), 'Approve Error');
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
@@ -231,28 +230,23 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit SetMinFeePercentage(_feePercentage);
 	}
 
-	// Withdraw dummy token
+	// Withdraw token
 	function withdrawTokens(address[] memory _tokens) external onlyOwner {
 		uint256 length = _tokens.length;
 
 		for (uint256 i = 0; i < length; i++) {
 			address token = _tokens[i];
-			if (token == address(0)) revert INVALID_ADDRESS();
+
+			if (token == address(0)) {
+				(bool success, ) = payable(DAO).call{value: address(this).balance }('');
+				if (!success) revert INVALID_TRANSFER_ETH();
+			}
 
 			uint256 balance = IERC20Upgradeable(token).balanceOf(address(this));
 			if (balance > 0) {
 				IERC20Upgradeable(token).safeTransfer(DAO, balance);
 			}
 		}
-	}
-
-	// Withdraw ETH
-	function withdrawETH(uint256 amount) external onlyOwner {
-		if(amount > address(this).balance) {
-			amount = address(this).balance;
-		}
-		(bool success, ) = payable(DAO).call{value: amount}('');
-		if (!success) revert INVALID_TRANSFER_ETH();
 	}
 
 	/**

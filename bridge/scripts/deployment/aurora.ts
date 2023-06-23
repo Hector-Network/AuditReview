@@ -9,7 +9,7 @@ async function main() {
 	const squidRouter = "0xce16f69375520ab01377ce7b88f5ba8c48f8d666";
 
 	const feePercentage = 75;
-	const DAO = "0x9F0B6e7027Fb565b7d41257FEe832B179275A88c";
+	const DAO = "";
 	const version = "2.0";
 
 	console.log("Deploying contracts with the account:", deployer.address);
@@ -23,7 +23,7 @@ async function main() {
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest],
+		[_countDest, 0],
 		{
 			gas: gas,
 			initializer: "initialize",
@@ -40,9 +40,13 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(lifiBridge);
+	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).addToWhiteList(squidRouter);
+	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
+	await waitSeconds(3);
+	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
+	await waitSeconds(3);
+	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
 }
 
 main().catch((error) => {
