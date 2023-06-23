@@ -25,7 +25,7 @@ async function main() {
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest, 0],
+		[_countDest, 1],
 		{
 			gas: gas,
 			initializer: "initialize",
