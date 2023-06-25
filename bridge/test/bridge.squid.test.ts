@@ -17,7 +17,7 @@ describe('Hector Bridge', function () {
   let dao: string = '0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90';
   let feePercentage: number = 950;
   let countDest: number = 2;
-  let blocksNeededForQueue = 28800; // 8 hours
+  let blocksNeededForQueue = 0; // 8 hours
   let ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
   enum MANAGING {
     RESERVE_BRIDGES,

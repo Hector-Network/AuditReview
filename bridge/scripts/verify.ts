@@ -9,7 +9,7 @@ async function main() {
 	const cmd = exec.exec;
 
   	console.log('Verifying on the FTM network...');
-	const cmdForVerify = `hardhat verify --contract \"contracts/HecBridgeSplitter.sol:HecBridgeSplitter\" 0x0a220047f41e04C1de722f6EA73DA66D86b094B2 --network ftm`;
+	const cmdForVerify = `hardhat verify --contract \"contracts/HecBridgeSplitter.sol:HecBridgeSplitter\" 0xCb315461Fa6514a26212E63BC5893878a28e12e2 --network ftm`;
 	console.log(cmdForVerify);
 	cmd(cmdForVerify, (error) => {
 		if (error !== null) {

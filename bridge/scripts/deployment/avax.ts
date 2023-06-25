@@ -41,11 +41,11 @@ async function main() {
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
-	await waitSeconds(3);
+	await waitSeconds(10);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
-	await waitSeconds(3);
+	await waitSeconds(10);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
 }
 
