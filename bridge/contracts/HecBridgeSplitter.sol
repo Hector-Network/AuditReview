@@ -76,12 +76,22 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	 */
 	function initialize(uint256 _CountDest, uint256 _blocksNeededForQueue) external initializer {
 		if (_CountDest == 0) revert INVALID_PARAM();
-		if (_blocksNeededForQueue == 0) revert INVALID_PARAM();
+		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
 		__Pausable_init();
 		__Ownable_init();
+	}
+
+	/* ======== VIEW FUNCTIONS ======== */
+	//return the count of reserveBridges
+	function getReserveBridgesCount() external view returns (uint256) {
+		return reserveBridges.length;
+	}
+
+	function getReserveBridgeAssetsCount() external view returns (uint256) {
+		return reserveBridgeAssets.length;
 	}
 
 	/* ======== POLICY FUNCTIONS ======== */
@@ -256,17 +266,21 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @return bool
      */
     function queue( MANAGING _managing, address _address ) external onlyOwner returns ( bool ) {
-		if ( _address == address(0) ) revert INVALID_ADDRESS();
-        
-        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
-            reserveBridgeQueue[ _address ] = block.timestamp + blocksNeededForQueue;
-        }  else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
-            reserveBridgeAssetQueue[ _address ] = block.timestamp + blocksNeededForQueue;
-        }  
-        else return false;
+		return _queue( _managing, _address);
+    }
 
-        emit ChangeQueued( _managing, _address );
-        return true;
+	/**
+        @notice queue address to change boolean in mapping
+        @param _managing MANAGING
+        @param addresses address[]
+     */
+    function queueMany( MANAGING _managing, address[] calldata addresses ) external onlyOwner {
+		uint256 length = addresses.length;
+
+		for (uint256 i = 0; i < length; i++) {
+			address _address = addresses[i];
+			_queue( _managing, _address);
+		}
     }
 
 	/**
@@ -276,34 +290,21 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @return bool
      */
     function toggle( MANAGING _managing, address _address) external onlyOwner returns ( bool ) {
+		return _toggle( _managing, _address );       
+    }
 
-        if ( _address == address(0) ) revert INVALID_ADDRESS();
-        bool result;
-        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
-            if ( requirements( reserveBridgeQueue, isReserveBridge, _address ) ) {
-                reserveBridgeQueue[ _address ] = 0;
-                if( !listContains( reserveBridges, _address ) ) {
-                    reserveBridges.push( _address );
-                }
-            }
-            result = !isReserveBridge[ _address ];
-            isReserveBridge[ _address ] = result;
-            
-        } else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
-            if ( requirements( reserveBridgeAssetQueue, isReserveBridgeAsset, _address ) ) {
-                reserveBridgeAssetQueue[ _address ] = 0;
-                if( !listContains( reserveBridgeAssets, _address ) ) {
-                    reserveBridgeAssets.push( _address );
-                }
-            }
-            result = !isReserveBridgeAsset[ _address ];
-            isReserveBridgeAsset[ _address ] = result;
+	/**
+        @notice verify queue then set boolean in mapping
+        @param _managing MANAGING
+        @param addresses address[]
+     */
+    function toggleMany( MANAGING _managing, address[] calldata addresses ) external onlyOwner {
+		uint256 length = addresses.length;
 
-        } 
-		else return false;
-
-        emit ChangeActivated( _managing, _address, result );
-        return true;
+		for (uint256 i = 0; i < length; i++) {
+			address _address = addresses[i];
+			_toggle( _managing, _address ); 
+		}
     }
 
 	/**
@@ -312,19 +313,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @return bool
      */
 	function removeReserveBridge(address _address) external onlyOwner returns (bool) {
-		if (_address == address(0)) revert INVALID_ADDRESS();
-
-		uint256 length = reserveBridges.length;
-		for (uint256 i = 0; i < length; i++) {
-			if (reserveBridges[i] == _address) {
-				reserveBridges[i] = reserveBridges[length - 1];
-				reserveBridges.pop();
-
-				isReserveBridge[_address] = false;
-				return true;
-			}
-		}
-		return false;
+		return _removeReserveBridge(_address);		
 	}
 
 	/**
@@ -333,19 +322,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @return bool
      */
 	function removeReserveBridgeAsset(address _address) external onlyOwner returns (bool) {
-		if (_address == address(0)) revert INVALID_ADDRESS();
-
-		uint256 length = reserveBridgeAssets.length;
-		for (uint256 i = 0; i < length; i++) {
-			if (reserveBridgeAssets[i] == _address) {
-				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
-				reserveBridgeAssets.pop();
-
-				isReserveBridgeAsset[_address] = false;
-				return true;
-			}
-		}
-		return false;
+		return _removeReserveBridgeAsset(_address);
 	}
 
     /**
@@ -380,6 +357,83 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
             }
         }
         return false;
+    }
+
+	function _removeReserveBridge(address _address) internal returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
+
+		uint256 length = reserveBridges.length;
+		for (uint256 i = 0; i < length; i++) {
+			if (reserveBridges[i] == _address) {
+				reserveBridges[i] = reserveBridges[length - 1];
+				reserveBridges.pop();
+
+				isReserveBridge[_address] = false;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function _removeReserveBridgeAsset(address _address) internal returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
+
+		uint256 length = reserveBridgeAssets.length;
+		for (uint256 i = 0; i < length; i++) {
+			if (reserveBridgeAssets[i] == _address) {
+				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
+				reserveBridgeAssets.pop();
+
+				isReserveBridgeAsset[_address] = false;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function _toggle( MANAGING _managing, address _address) internal returns ( bool ) {
+
+        if ( _address == address(0) ) revert INVALID_ADDRESS();
+        bool result;
+        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
+            if ( requirements( reserveBridgeQueue, isReserveBridge, _address ) ) {
+                reserveBridgeQueue[ _address ] = 0;
+                if( !listContains( reserveBridges, _address ) ) {
+                    reserveBridges.push( _address );
+                }
+            }
+            result = !isReserveBridge[ _address ];
+            isReserveBridge[ _address ] = result;
+            
+        } else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
+            if ( requirements( reserveBridgeAssetQueue, isReserveBridgeAsset, _address ) ) {
+                reserveBridgeAssetQueue[ _address ] = 0;
+                if( !listContains( reserveBridgeAssets, _address ) ) {
+                    reserveBridgeAssets.push( _address );
+                }
+            }
+            result = !isReserveBridgeAsset[ _address ];
+            isReserveBridgeAsset[ _address ] = result;
+
+        } 
+		else return false;
+
+        emit ChangeActivated( _managing, _address, result );
+        return true;
+    }
+
+	function _queue( MANAGING _managing, address _address ) internal returns ( bool ) {
+		if ( _address == address(0) ) revert INVALID_ADDRESS();
+        
+        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
+            reserveBridgeQueue[ _address ] = block.timestamp + blocksNeededForQueue;
+        }  else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
+            reserveBridgeAssetQueue[ _address ] = block.timestamp + blocksNeededForQueue;
+        }  
+        else return false;
+
+        emit ChangeQueued( _managing, _address );
+        return true;
     }
 	
 }
