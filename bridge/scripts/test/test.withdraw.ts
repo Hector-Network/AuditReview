@@ -12,7 +12,7 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0x6F9aF916F9b6bC9e437f3d793bED5611792c2ce9";
+	const SPLITTER_ADDRESS = "0x3ca20186A4aC97879e9650c0340cD5C99589a1Eb";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
@@ -38,8 +38,10 @@ async function main() {
 	const mockSendingAssetInfo1 = {
 		callData: tempStepData.transactionRequest.data,
 		sendingAmount: tempStepData.params.fromAmount, // This is calculated amount except fee for using Bridge 
-		totalAmount: BigNumber.from('100000000010000000').toString(), // Mock Total Amount
-		feeAmount: BigNumber.from('100000000010000000').sub(BigNumber.from(tempStepData.params.fromAmount)).toString(), // MockFee - 0.075%
+		totalAmount: BigNumber.from(tempStepData.params.fromAmount)
+						.add(BigNumber.from("10000000000000000"))
+						.toString(), // Mock Total Amount
+		feeAmount: BigNumber.from("10000000000000000").toString(),
 		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value).toString(),
 	};
 
@@ -84,15 +86,6 @@ async function main() {
 		mockSendingAssetInfos.push(mockSendingAssetInfo1);
 	}
 
-	//add asset as reserveAsset
-	const queueTx = await testHecBridgeSplitterContract.queue(MANAGING.RESERVE_BRIDGE_ASSETS, ZERO_ADDRESS);
-	await queueTx.wait()
-	const toggleTx = await testHecBridgeSplitterContract.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, ZERO_ADDRESS);
-	await toggleTx.wait()
-
-	
-	console.log('Done Toggle Tx:', toggleTx.transactionHash);
-
 	console.log("sendingAsset:", sendingAsset);
 	console.log('mockSendingAssetInfos:', mockSendingAssetInfos);
 	console.log("callTargetAddress:", targetAddress);
@@ -136,14 +129,26 @@ async function main() {
 			mockSendingAssetInfos,
 			targetAddress,
 			{
-				value: fee,
+				value: BigNumber.from("100000")
+				.add(BigNumber.from(tempStepData.transactionRequest.value))
+				.add(BigNumber.from("10000000000000000")),
 			}
 		);
 		const resultWait = await result.wait();
 		console.log('Done bridge Tx:', resultWait.transactionHash);
+		console.log("Withdraw native token from contract:")
+
+		const array = []
+		array.push(ZERO_ADDRESS)
+
+		let tx = await testHecBridgeSplitterContract.withdrawTokens(array)
+		const txResult = await tx.wait();
+		console.log('Done Tx:', txResult.transactionHash);
 	} catch (e) {
 		console.log(e);
 	}
+
+	
 }
 
 main().catch((error) => {

@@ -5,13 +5,14 @@ const abi = require('../../artifacts/contracts/HecBridgeSplitter.sol/HecBridgeSp
 const erc20Abi = require('../../artifacts/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol/IERC20Upgradeable.json');
 const tempStepData = require('./tempStepDataForSquid.json');
 require('dotenv').config();
+import {MANAGING} from '../deployHecBridgeSplitter'
 
 async function main() {
 	let mode = 'single'; // mode: single, multi
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0xAC09461FAfe048440324a905924eF9e101f3EFE4";
+	const SPLITTER_ADDRESS = "0x61B7a30296d9fCF72fC810B1B0124C48b2c6025b";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
@@ -118,8 +119,10 @@ async function main() {
 
 	console.log({ fee: fee.toString(), fees });
 	console.log({ useSquid: true, targetAddress });
-	const isInWhiteList = await testHecBridgeSplitterContract.isInWhiteList(targetAddress);
-	console.log("isWhiteList:", isInWhiteList);
+	const tx = await testHecBridgeSplitterContract.queue(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
+	await tx.wait()
+	const tx1 = await testHecBridgeSplitterContract.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
+	await tx1.wait()
 	console.log('Start bridge...');
 
 	try {

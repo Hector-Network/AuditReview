@@ -121,7 +121,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
 				isReserveBridge[ callTargetAddress ] &&
-				isReserveBridgeAsset[ sendingAsset ],
+				isReserveBridgeAsset[ sendingAsset ] || sendingAsset == address(0),
 			'Bridge: Invalid parameters'
 		);
 
@@ -250,11 +250,11 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			if (token == address(0)) {
 				(bool success, ) = payable(DAO).call{value: address(this).balance }('');
 				if (!success) revert INVALID_TRANSFER_ETH();
-			}
-
-			uint256 balance = IERC20Upgradeable(token).balanceOf(address(this));
-			if (balance > 0) {
-				IERC20Upgradeable(token).safeTransfer(DAO, balance);
+			}else{
+				uint256 balance = IERC20Upgradeable(token).balanceOf(address(this));
+				if (balance > 0) {
+					IERC20Upgradeable(token).safeTransfer(DAO, balance);
+				}
 			}
 		}
 	}
