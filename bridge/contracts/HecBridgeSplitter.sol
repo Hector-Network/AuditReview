@@ -108,7 +108,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	//               USER CALLED FUNCTIONS               //
 	///////////////////////////////////////////////////////
 
-	/// @notice Performs a swap before bridging via HECTOR Bridge Splitter
+	/// @notice Performs ERC20 token swap before bridging via HECTOR Bridge Splitter
 	/// @param sendingAsset Asset that is used for bridge
 	/// @param sendingAssetInfos Array Data used purely for sending assets
 	/// @param callTargetAddress use in executing squid bridge contract
@@ -121,7 +121,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
 				isReserveBridge[ callTargetAddress ] &&
-				isReserveBridgeAsset[ sendingAsset ] || sendingAsset == address(0),
+				isReserveBridgeAsset[ sendingAsset ],
 			'Bridge: Invalid parameters'
 		);
 
@@ -145,7 +145,51 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit HectorBridge(msg.sender, sendingAssetInfos);
 	}
 
-	// Receive asset
+	///////////////////////////////////////////////////////
+	//               USER CALLED FUNCTIONS               //
+	///////////////////////////////////////////////////////
+
+	/// @notice Performs Native token swap before bridging via HECTOR Bridge Splitter
+	/// @param sendingAssetInfos Array Data used purely for sending assets
+	/// @param callTargetAddress use in executing squid bridge contract
+	function bridgeNative(
+		SendingAssetInfo[] calldata sendingAssetInfos,
+		address callTargetAddress
+	) external payable whenNotPaused {
+		require(
+			sendingAssetInfos.length > 0 &&
+				sendingAssetInfos.length <= CountDest &&
+				isReserveBridge[ callTargetAddress ] ,
+			'Bridge: Invalid parameters'
+		);
+
+		// Receive asset
+		_receiveAssets(address(0), sendingAssetInfos, callTargetAddress);
+
+		uint length = sendingAssetInfos.length;
+		for (uint i = 0; i < length; i++) {
+			bytes memory callData = sendingAssetInfos[i].callData;
+			uint256 fee = sendingAssetInfos[i].bridgeFee;
+			if (fee > 0) {
+				(bool success, bytes memory result) = payable(callTargetAddress).call{value: fee}(callData);
+				if (!success) revert(_getRevertMsg(result));
+				emit MakeCallData(success, callData, msg.sender);
+			} else {
+				(bool success, bytes memory result) = payable(callTargetAddress).call(callData);
+				if (!success) revert(_getRevertMsg(result));
+				emit MakeCallData(success, callData, msg.sender);
+			}
+		}
+		emit HectorBridge(msg.sender, sendingAssetInfos);
+	}
+
+
+	/**
+        @notice receive assets to bridge
+        @param sendingAsset sending asset contract address
+		@param sendingAssetInfos sending asset info
+		@param callTargetAddress target address
+     */
 	function _receiveAssets(
 		address sendingAsset,
 		SendingAssetInfo[] calldata sendingAssetInfos,
@@ -202,7 +246,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		return abi.decode(_returnData, (string)); // All that remains is the revert string
 	}
 
-	// Custom counts of detinations
+	/**
+        @notice set count dest 
+        @param _countDest new count dest
+     */
 	function setCountDest(uint256 _countDest) external onlyOwner {
 		if (_countDest == 0) revert INVALID_PARAM();
 		uint256 oldCountDest = CountDest;
@@ -210,7 +257,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit SetCountDest(oldCountDest, _countDest, msg.sender);
 	}
 
-	// Set DAO wallet
+	/**
+        @notice set DAO address
+        @param newDAO new DAO address
+     */
 	function setDAO(address newDAO) external onlyOwner {
 		if (newDAO == address(0)) revert INVALID_ADDRESS();
 		address oldDAO = DAO;
@@ -219,12 +269,19 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit SetDAO(oldDAO, newDAO, msg.sender);
 	}
 
-	// Set Version
+	/**
+        @notice set version
+        @param _version new version
+     */
 	function setVersion(string calldata _version) external onlyOwner {
 		version = _version;
 		emit SetVersion(_version);
 	}
 
+	/**
+        @notice set Block Queue 
+        @param _blocksNeededForQueue new queue block
+     */
 	function setBlockQueue(uint256 _blocksNeededForQueue) external onlyOwner {
 		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 		uint256 oldValue = blocksNeededForQueue;
@@ -233,14 +290,20 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		emit SetBlockQueue(oldValue, _blocksNeededForQueue);
 	}
 
-	// Set Minimum Fee Percentage
+	/**
+        @notice set Minimum free percentage 
+        @param _feePercentage new percentage
+     */
 	function setMinFeePercentage(uint _feePercentage) external onlyOwner {
 		require(_feePercentage > 0 && _feePercentage < 1000, 'Invalid percentage');
 		minFeePercentage = _feePercentage;
 		emit SetMinFeePercentage(_feePercentage);
 	}
 
-	// Withdraw token
+	/**
+        @notice withdraw tokens from contract
+        @param _token array of tokens to withdraw
+     */
 	function withdrawTokens(address[] memory _tokens) external onlyOwner {
 		uint256 length = _tokens.length;
 
