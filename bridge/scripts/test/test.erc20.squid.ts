@@ -12,7 +12,7 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0x61B7a30296d9fCF72fC810B1B0124C48b2c6025b";
+	const SPLITTER_ADDRESS = "0x8d46a6C31621d327F5317567B12Cf61A66f88fb3";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
@@ -28,7 +28,7 @@ async function main() {
 	const mockSendingAssetInfos = [];
 
 	console.log('HecBridgeSplitter:', HecBridgeSplitterAddress);
-
+		
 	const isNativeFrom = tempStepData.params.fromToken.address == ETH_ADDRESS;
 
 	console.log('Mode:', mode);
@@ -48,6 +48,11 @@ async function main() {
 		? ZERO_ADDRESS
 		: tempStepData.params.fromToken.address;
 	const targetAddress = tempStepData.transactionRequest.targetAddress;
+
+	const tx = await testHecBridgeSplitterContract.queue(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
+	await tx.wait()
+	const tx1 = await testHecBridgeSplitterContract.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
+	await tx1.wait()
 
 	// Set Fees
 	const fees: Array<BigNumber> = [];
@@ -119,10 +124,7 @@ async function main() {
 
 	console.log({ fee: fee.toString(), fees });
 	console.log({ useSquid: true, targetAddress });
-	const tx = await testHecBridgeSplitterContract.queue(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
-	await tx.wait()
-	const tx1 = await testHecBridgeSplitterContract.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
-	await tx1.wait()
+
 	console.log('Start bridge...');
 
 	try {
