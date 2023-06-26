@@ -1,5 +1,6 @@
 import { BigNumber } from 'ethers';
 import { waitSeconds } from '../helper';
+import { MANAGING } from '../deployHecBridgeSplitter';
 const hre = require("hardhat");
 
 async function main() {
@@ -40,12 +41,14 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
-	await waitSeconds(10);
+	const tx = await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
+	await tx.wait();
+	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
-	await waitSeconds(10);
+	const tx1 = await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
+	await tx1.wait();
+	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
 }
 

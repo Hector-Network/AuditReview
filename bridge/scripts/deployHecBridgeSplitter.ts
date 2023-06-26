@@ -9,6 +9,7 @@ async function main() {
 	const _countDest = 2; // Count of the destination wallets, default: 2
 	const lifiBridge = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE";
 	const squidRouter = "0xce16f69375520ab01377ce7b88f5ba8c48f8d666";
+	const blocksNeededForQueue = 0
 
 	const feePercentage = 75;
 	const DAO = "0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90";
@@ -25,7 +26,7 @@ async function main() {
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest, 1],
+		[_countDest, blocksNeededForQueue],
 		{
 			gas: gas,
 			initializer: "initialize",
@@ -42,12 +43,14 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
-	await waitSeconds(10);
+	const tx = await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
+	await tx.wait();
+	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
 	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
-	await waitSeconds(10);
+	const tx1 = await hecBridgeSplitterContract.connect(deployer).queue(MANAGING.RESERVE_BRIDGES, squidRouter);
+	await tx1.wait();
+	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
 }
 

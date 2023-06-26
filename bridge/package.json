@@ -12,6 +12,7 @@
     "verify": "hardhat run ./scripts/verify.ts",
     "test-lifi": "hardhat run ./scripts/test/test.lifi.ts --network",
     "test-squid": "hardhat run ./scripts/test/test.squid.ts --network",
+    "test-withdraw": "hardhat run ./scripts/test/test.withdraw.ts --network",
     "unit-test-lifi": "hardhat test ./test/bridge.lifi.test.ts --network polygon",
     "unit-test-squid": "hardhat test ./test/bridge.squid.test.ts --network ftm",
     "test": "hardhat test --network ftm",

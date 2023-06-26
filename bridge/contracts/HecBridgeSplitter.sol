@@ -76,7 +76,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	 */
 	function initialize(uint256 _CountDest, uint256 _blocksNeededForQueue) external initializer {
 		if (_CountDest == 0) revert INVALID_PARAM();
-		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		// if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
