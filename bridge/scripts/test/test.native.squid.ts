@@ -128,21 +128,13 @@ async function main() {
 			mockSendingAssetInfos,
 			targetAddress,
 			{
-				value: BigNumber.from("100000")
-					.add(BigNumber.from(tempStepData.transactionRequest.value))
+				value: BigNumber.from(tempStepData.transactionRequest.value)
 					.add(BigNumber.from("10000000000000000")),
 			}
 		);
 		const resultWait = await result.wait();
 		console.log('Done bridge Tx:', resultWait.transactionHash);
 		console.log("Withdraw native token from contract:")
-
-		const array = []
-		array.push(ZERO_ADDRESS)
-
-		let tx = await testHecBridgeSplitterContract.withdrawTokens(array)
-		const txResult = await tx.wait();
-		console.log('Done Tx:', txResult.transactionHash);
 	} catch (e) {
 		console.log(e);
 	}

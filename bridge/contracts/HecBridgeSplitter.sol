@@ -159,7 +159,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isReserveBridge[ callTargetAddress ] ,
+				isReserveBridge[ callTargetAddress ],
 			'Bridge: Invalid parameters'
 		);
 
@@ -302,8 +302,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	/**
         @notice withdraw tokens from contract
-        @param _token array of tokens to withdraw
-     */
+        @param _tokens array of tokens to withdraw
+    **/
 	function withdrawTokens(address[] memory _tokens) external onlyOwner {
 		uint256 length = _tokens.length;
 
