@@ -80,16 +80,18 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
+		minFeePercentage = 1;
 		__Pausable_init();
 		__Ownable_init();
 	}
 
 	/* ======== VIEW FUNCTIONS ======== */
-	//return the count of reserveBridges
+	/// @notice Returns the length of reserveBridges array
 	function getReserveBridgesCount() external view returns (uint256) {
 		return reserveBridges.length;
 	}
 
+	/// @notice Returns the length of reserveBridgeAssets array
 	function getReserveBridgeAssetsCount() external view returns (uint256) {
 		return reserveBridgeAssets.length;
 	}
@@ -234,7 +236,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		}
 	}
 
-	// Return revert msg of failed Bridge transaction
+	/// @notice Return revert msg of failed Bridge transaction
 	function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
 		// If the _res length is less than 68, then the transaction failed silently (without a revert message)
 		if (_returnData.length < 68) return 'Transaction reverted silently';
@@ -247,7 +249,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	}
 
 	/**
-        @notice set count dest 
+        @notice set how many bridges the contract can process
         @param _countDest new count dest
      */
 	function setCountDest(uint256 _countDest) external onlyOwner {
