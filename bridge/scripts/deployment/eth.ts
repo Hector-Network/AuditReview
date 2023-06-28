@@ -7,7 +7,8 @@ async function main() {
 	const _countDest = 2; // Count of the destination wallets, default: 2
 	const lifiBridge = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE";
 	const squidRouter = "0xce16f69375520ab01377ce7b88f5ba8c48f8d666";
-
+	const chainId = '1'
+	const queueLimit = 100
 	const feePercentage = 75;
 	const DAO = "0x4bfb33d65f4167EBE190145939479227E7bf2CB0";
 	const version = "2.0";

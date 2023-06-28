@@ -1,16 +1,18 @@
 import { BigNumber } from 'ethers';
 import { waitSeconds } from '../helper';
+import { getTokenList } from './getTokenAddress';
 const hre = require("hardhat");
 
 export enum MANAGING { RESERVE_BRIDGES = 0, RESERVE_BRIDGE_ASSETS = 1}
 
 async function main() {
+	
 	const [deployer] = await hre.ethers.getSigners();
 	const _countDest = 2; // Count of the destination wallets, default: 2
 	const lifiBridge = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE";
 	const squidRouter = "0xce16f69375520ab01377ce7b88f5ba8c48f8d666";
 	const blocksNeededForQueue = 0
-
+	
 	const feePercentage = 75;
 	const DAO = "0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90";
 	const version = "2.0";
@@ -20,6 +22,10 @@ async function main() {
 
 	const gas = await ethers.provider.getGasPrice();
 	console.log("Gas Price: ", gas);
+
+	const chainID = '250'
+	const tokenLimit = 100
+	const tokenList = await getTokenList(chainID)
 
 	const hecBridgeSplitterFactory = await ethers.getContractFactory("HecBridgeSplitter");
 	console.log("Deploying HecBridgeSplitter Contract...");
@@ -47,6 +53,14 @@ async function main() {
 	await tx.wait();
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGES, [lifiBridge, squidRouter]);
+
+	for(let i = 0; i < tokenList.length / tokenLimit + 1; i ++){
+		const tokens = tokenList.slice(i * tokenLimit, tokenLimit * (i + 1) - 1)
+		const tx = await hecBridgeSplitterContract.connect(deployer).queueMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+		await tx.wait();
+		await waitSeconds(3);
+		await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+	}
 
 }
 
