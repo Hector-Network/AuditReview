@@ -25,8 +25,8 @@ async function main() {
 	console.log("Gas Price: ", gas);
 
 	const chainID = '250'
-	const tokenLimitQueue = 400
-	const tokenLimitToggle = 40
+	const tokenLimitQueue = process.env.ftmTokenLimitQueue? parseInt(process.env.ftmTokenLimitQueue) : 400
+	const tokenLimitToggle = process.env.ftmTokenLimitToggle ? parseInt(process.env.ftmTokenLimitToggle) : 40
 	const tokenList = await getTokenList(chainID)
 
 	console.log("Supported token addresses count:", tokenList.length)
@@ -113,7 +113,7 @@ async function main() {
 			try{
 				const tx1 = await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
 				await tx1.wait();
-				console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1, "from",  i * tokenLimitQueue, "to",  tokenLimitQueue * (i + 1))
+				console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1, "from",  i * tokenLimitToggle, "to",  tokenLimitToggle * (i + 1))
 				toggleSuccess = true
 			}catch(error){
 				console.error("Toggle transaction failed. Retrying...");
