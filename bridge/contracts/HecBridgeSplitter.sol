@@ -244,7 +244,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
-			if (msg.value < bridgeFees + feeAmounts) revert INVALID_FEES();
+			if (msg.value < bridgeFees + totalAmounts) revert INVALID_FEES();
 			(bool success, ) = payable(DAO).call{value: feeAmounts}('');
 			if (!success) revert DAO_FEE_FAILED();
 		}
