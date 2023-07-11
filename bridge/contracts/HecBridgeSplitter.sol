@@ -495,7 +495,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
                 }
             }
             result = !isReserveBridge[ _address ];
-            isReserveBridge[ _address ] = result;
+			if(result) isReserveBridge[ _address ] = result;
+			else _removeReserveBridge(_address);
             
         } else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
             if ( requirements( reserveBridgeAssetQueue, isReserveBridgeAsset, _address ) ) {
@@ -505,7 +506,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
                 }
             }
             result = !isReserveBridgeAsset[ _address ];
-            isReserveBridgeAsset[ _address ] = result;
+			if(result) isReserveBridgeAsset[ _address ] = result;
+			else _removeReserveBridgeAsset(_address);
 
         } 
 		else return false;
