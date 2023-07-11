@@ -37,21 +37,23 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	address public DAO; // DAO wallet for taking fee
 	string public version;
 
-	enum MANAGING { RESERVE_BRIDGES, RESERVE_BRIDGE_ASSETS }
+	enum MANAGING {
+		RESERVE_BRIDGES,
+		RESERVE_BRIDGE_ASSETS
+	}
 	uint256 public blocksNeededForQueue;
-	uint256 constant public MINQUEUETIME = 28800; // 8 hours
+	uint256 public constant MINQUEUETIME = 28800; // 8 hours
 
+	address[] public reserveBridges;
+	mapping(address => bool) public isReserveBridge;
+	mapping(address => uint) public reserveBridgeQueue; // Delays changes to mapping.
 
-	address[] public reserveBridges; 
-    mapping( address => bool ) public isReserveBridge;
-    mapping( address => uint ) public reserveBridgeQueue; // Delays changes to mapping.
-
-	address[] public reserveBridgeAssets; 
-    mapping( address => bool ) public isReserveBridgeAsset;
-    mapping( address => uint ) public reserveBridgeAssetQueue; // Delays changes to mapping.
+	address[] public reserveBridgeAssets;
+	mapping(address => bool) public isReserveBridgeAsset;
+	mapping(address => uint) public reserveBridgeAssetQueue; // Delays changes to mapping.
 
 	/// @notice moderators data
-    mapping(address => bool) public moderators;
+	mapping(address => bool) public moderators;
 
 	// Events
 	event SetCountDest(uint256 oldCountDest, uint256 newCountDest, address indexed user);
@@ -64,9 +66,9 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	event RemoveCallAddress(address _callAddress, address _owner);
 	event ApproveToken(address _srcToken, address _callAddress, uint256 _amount);
 
-	event ChangeQueued( MANAGING indexed managing, address queued );
-	event ChangeActivated( MANAGING indexed managing, address activated, bool result );
-	event SetBlockQueue( uint256 oldBlockQueue, uint256 newBlockQueue );
+	event ChangeQueued(MANAGING indexed managing, address queued);
+	event ChangeActivated(MANAGING indexed managing, address activated, bool result);
+	event SetBlockQueue(uint256 oldBlockQueue, uint256 newBlockQueue);
 
 	/* ======== INITIALIZATION ======== */
 
@@ -94,10 +96,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	/* ======== MODIFIER ======== */
 
-    modifier onlyMod() {
-        if (!moderators[msg.sender]) revert INVALID_MODERATOR();
-        _;
-    }
+	modifier onlyMod() {
+		if (!moderators[msg.sender]) revert INVALID_MODERATOR();
+		_;
+	}
 
 	/* ======== VIEW FUNCTIONS ======== */
 	/// @notice Returns the length of reserveBridges array
@@ -136,8 +138,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isReserveBridge[ callTargetAddress ] &&
-				isReserveBridgeAsset[ sendingAsset ],
+				isReserveBridge[callTargetAddress] &&
+				isReserveBridgeAsset[sendingAsset],
 			'Bridge: Invalid parameters'
 		);
 
@@ -175,7 +177,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isReserveBridge[ callTargetAddress ],
+				isReserveBridge[callTargetAddress],
 			'Bridge: Invalid parameters'
 		);
 
@@ -198,7 +200,6 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		}
 		emit HectorBridge(msg.sender, sendingAssetInfos);
 	}
-
 
 	/**
         @notice receive assets to bridge
@@ -240,11 +241,11 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			uint256 afterBalance = srcToken.balanceOf(address(this));
 			if (afterBalance - beforeBalance != totalAmounts) revert INVALID_AMOUNT();
 			// Approve targetAddress
-			require (srcToken.approve(callTargetAddress, sendAmounts), 'Approve Error');
+			require(srcToken.approve(callTargetAddress, sendAmounts), 'Approve Error');
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
-			if (msg.value < bridgeFees + feeAmounts) revert INVALID_FEES();
+			if (msg.value < bridgeFees + totalAmounts) revert INVALID_FEES();
 			(bool success, ) = payable(DAO).call{value: feeAmounts}('');
 			if (!success) revert DAO_FEE_FAILED();
 		}
@@ -321,13 +322,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _moderator new/existing wallet address
 		@param _approved active/inactive flag
      */
-	function setModerator(
-        address _moderator,
-        bool _approved
-    ) external onlyOwner {
-        if (_moderator == address(0)) revert INVALID_ADDRESS();
-        moderators[_moderator] = _approved;
-    }
+	function setModerator(address _moderator, bool _approved) external onlyOwner {
+		if (_moderator == address(0)) revert INVALID_ADDRESS();
+		moderators[_moderator] = _approved;
+	}
 
 	/**
         @notice withdraw tokens from contract
@@ -340,9 +338,9 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 			address token = _tokens[i];
 
 			if (token == address(0)) {
-				(bool success, ) = payable(DAO).call{value: address(this).balance }('');
+				(bool success, ) = payable(DAO).call{value: address(this).balance}('');
 				if (!success) revert INVALID_TRANSFER_ETH();
-			}else{
+			} else {
 				uint256 balance = IERC20Upgradeable(token).balanceOf(address(this));
 				if (balance > 0) {
 					IERC20Upgradeable(token).safeTransfer(DAO, balance);
@@ -357,23 +355,23 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-    function queue( MANAGING _managing, address _address ) external onlyMod returns ( bool ) {
-		return _queue( _managing, _address);
-    }
+	function queue(MANAGING _managing, address _address) external onlyMod returns (bool) {
+		return _queue(_managing, _address);
+	}
 
 	/**
         @notice queue address to change boolean in mapping
         @param _managing MANAGING
         @param addresses address[]
      */
-    function queueMany( MANAGING _managing, address[] calldata addresses ) external onlyMod {
+	function queueMany(MANAGING _managing, address[] calldata addresses) external onlyMod {
 		uint256 length = addresses.length;
 
 		for (uint256 i = 0; i < length; i++) {
 			address _address = addresses[i];
-			_queue( _managing, _address);
+			_queue(_managing, _address);
 		}
-    }
+	}
 
 	/**
         @notice verify queue then set boolean in mapping
@@ -381,23 +379,23 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-    function toggle( MANAGING _managing, address _address) external onlyMod returns ( bool ) {
-		return _toggle( _managing, _address );       
-    }
+	function toggle(MANAGING _managing, address _address) external onlyMod returns (bool) {
+		return _toggle(_managing, _address);
+	}
 
 	/**
         @notice verify queue then set boolean in mapping
         @param _managing MANAGING
         @param addresses address[]
      */
-    function toggleMany( MANAGING _managing, address[] calldata addresses ) external onlyMod {
+	function toggleMany(MANAGING _managing, address[] calldata addresses) external onlyMod {
 		uint256 length = addresses.length;
 
 		for (uint256 i = 0; i < length; i++) {
 			address _address = addresses[i];
-			_toggle( _managing, _address ); 
+			_toggle(_managing, _address);
 		}
-    }
+	}
 
 	/**
         @notice remove bridge contract from whitelist
@@ -405,7 +403,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @return bool
      */
 	function removeReserveBridge(address _address) external onlyMod returns (bool) {
-		return _removeReserveBridge(_address);		
+		return _removeReserveBridge(_address);
 	}
 
 	/**
@@ -417,39 +415,40 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		return _removeReserveBridgeAsset(_address);
 	}
 
-    /**
+	/**
         @notice checks requirements and returns altered structs
         @param queue_ mapping( address => uint )
         @param status_ mapping( address => bool )
         @param _address address
         @return bool 
      */
-    function requirements( 
-        mapping( address => uint ) storage queue_, 
-        mapping( address => bool ) storage status_, 
-        address _address 
-    ) internal view returns ( bool ) {
-        if ( !status_[ _address ] ) {
-			if (queue_[ _address ] == 0) revert MUST_QUEUE();
-			if (queue_[ _address ] > block.timestamp) revert QUEUE_NOT_EXPIRED();            
-            return true;
-        } return false;
-    }
+	function requirements(
+		mapping(address => uint) storage queue_,
+		mapping(address => bool) storage status_,
+		address _address
+	) internal view returns (bool) {
+		if (!status_[_address]) {
+			if (queue_[_address] == 0) revert MUST_QUEUE();
+			if (queue_[_address] > block.timestamp) revert QUEUE_NOT_EXPIRED();
+			return true;
+		}
+		return false;
+	}
 
-    /**
+	/**
         @notice checks array to ensure against duplicate
         @param _list address[]
         @param _token address
         @return bool
      */
-    function listContains( address[] storage _list, address _token ) internal view returns ( bool ) {
-        for( uint i = 0; i < _list.length; i++ ) {
-            if( _list[ i ] == _token ) {
-                return true;
-            }
-        }
-        return false;
-    }
+	function listContains(address[] storage _list, address _token) internal view returns (bool) {
+		for (uint i = 0; i < _list.length; i++) {
+			if (_list[i] == _token) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	function _removeReserveBridge(address _address) internal returns (bool) {
 		if (_address == address(0)) revert INVALID_ADDRESS();
@@ -458,7 +457,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		for (uint256 i = 0; i < length; i++) {
 			if (reserveBridges[i] == _address) {
 				reserveBridges[i] = reserveBridges[length - 1];
-				reserveBridges.pop();
+				deleteLastAddress(reserveBridges);
 
 				isReserveBridge[_address] = false;
 				return true;
@@ -474,7 +473,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		for (uint256 i = 0; i < length; i++) {
 			if (reserveBridgeAssets[i] == _address) {
 				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
-				reserveBridgeAssets.pop();
+				deleteLastAddress(reserveBridgeAssets);
 
 				isReserveBridgeAsset[_address] = false;
 				return true;
@@ -483,49 +482,56 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		return false;
 	}
 
-	function _toggle( MANAGING _managing, address _address) internal returns ( bool ) {
+	function _toggle(MANAGING _managing, address _address) internal returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
+		bool result;
+		if (_managing == MANAGING.RESERVE_BRIDGES) {
+			// 0
+			if (requirements(reserveBridgeQueue, isReserveBridge, _address)) {
+				reserveBridgeQueue[_address] = 0;
+				if (!listContains(reserveBridges, _address)) {
+					reserveBridges.push(_address);
+				}
+			}
+			result = !isReserveBridge[_address];
+			if (result) isReserveBridge[_address] = result;
+			else _removeReserveBridge(_address);
+		} else if (_managing == MANAGING.RESERVE_BRIDGE_ASSETS) {
+			// 1
+			if (requirements(reserveBridgeAssetQueue, isReserveBridgeAsset, _address)) {
+				reserveBridgeAssetQueue[_address] = 0;
+				if (!listContains(reserveBridgeAssets, _address)) {
+					reserveBridgeAssets.push(_address);
+				}
+			}
+			result = !isReserveBridgeAsset[_address];
+			if (result) isReserveBridgeAsset[_address] = result;
+			else _removeReserveBridgeAsset(_address);
+		} else return false;
 
-        if ( _address == address(0) ) revert INVALID_ADDRESS();
-        bool result;
-        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
-            if ( requirements( reserveBridgeQueue, isReserveBridge, _address ) ) {
-                reserveBridgeQueue[ _address ] = 0;
-                if( !listContains( reserveBridges, _address ) ) {
-                    reserveBridges.push( _address );
-                }
-            }
-            result = !isReserveBridge[ _address ];
-            isReserveBridge[ _address ] = result;
-            
-        } else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
-            if ( requirements( reserveBridgeAssetQueue, isReserveBridgeAsset, _address ) ) {
-                reserveBridgeAssetQueue[ _address ] = 0;
-                if( !listContains( reserveBridgeAssets, _address ) ) {
-                    reserveBridgeAssets.push( _address );
-                }
-            }
-            result = !isReserveBridgeAsset[ _address ];
-            isReserveBridgeAsset[ _address ] = result;
+		emit ChangeActivated(_managing, _address, result);
+		return true;
+	}
 
-        } 
-		else return false;
+	function _queue(MANAGING _managing, address _address) internal returns (bool) {
+		if (_address == address(0)) revert INVALID_ADDRESS();
 
-        emit ChangeActivated( _managing, _address, result );
-        return true;
-    }
+		if (_managing == MANAGING.RESERVE_BRIDGES) {
+			// 0
+			reserveBridgeQueue[_address] = block.timestamp + blocksNeededForQueue;
+		} else if (_managing == MANAGING.RESERVE_BRIDGE_ASSETS) {
+			// 1
+			reserveBridgeAssetQueue[_address] = block.timestamp + blocksNeededForQueue;
+		} else return false;
 
-	function _queue( MANAGING _managing, address _address ) internal returns ( bool ) {
-		if ( _address == address(0) ) revert INVALID_ADDRESS();
-        
-        if ( _managing == MANAGING.RESERVE_BRIDGES ) { // 0
-            reserveBridgeQueue[ _address ] = block.timestamp + blocksNeededForQueue;
-        }  else if ( _managing == MANAGING.RESERVE_BRIDGE_ASSETS ) { // 1
-            reserveBridgeAssetQueue[ _address ] = block.timestamp + blocksNeededForQueue;
-        }  
-        else return false;
+		emit ChangeQueued(_managing, _address);
+		return true;
+	}
 
-        emit ChangeQueued( _managing, _address );
-        return true;
-    }
-	
+	function deleteLastAddress(address[] storage addressList) internal {
+		require(addressList.length > 0, 'Array is empty');
+		uint lastIndex = addressList.length - 1;
+		delete addressList[lastIndex];
+		addressList.pop();
+	}
 }

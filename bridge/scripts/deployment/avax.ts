@@ -2,6 +2,7 @@ import { BigNumber } from 'ethers';
 import { waitSeconds } from '../../helper';
 const hre = require("hardhat");
 import { MANAGING } from '../deployHecBridgeSplitter';
+import { getTokenList } from '../getTokenAddress';
 
 async function main() {
 	const [deployer] = await hre.ethers.getSigners();

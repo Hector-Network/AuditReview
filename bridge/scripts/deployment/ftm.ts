@@ -2,6 +2,8 @@ import { BigNumber } from 'ethers';
 import { waitSeconds } from '../../helper';
 const hre = require("hardhat");
 import { MANAGING } from '../deployHecBridgeSplitter';
+import { getTokenList } from '../getTokenAddress';
+
 async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	const _countDest = 2; // Count of the destination wallets, default: 2
@@ -51,46 +53,64 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGES, [lifiBridge, squidRouter]);
 
-	for(let i = 0; i < Math.floor(tokenList.length / tokenLimitQueue) + 1; i ++){
-		let tokens
-		if(tokenLimitQueue * (i + 1) - 1 > tokenList.length) 
-			tokens = tokenList.slice(i * tokenLimitQueue, tokenList.length)
-		else tokens = tokenList.slice(i * tokenLimitQueue, tokenLimitQueue * (i + 1))
+	// for(let i = 0; i < Math.floor(tokenList.length / tokenLimitQueue) + 1; i ++){
+	// 	let tokens
+	// 	if(tokenLimitQueue * (i + 1) - 1 > tokenList.length) 
+	// 		tokens = tokenList.slice(i * tokenLimitQueue, tokenList.length)
+	// 	else tokens = tokenList.slice(i * tokenLimitQueue, tokenLimitQueue * (i + 1))
 		
-		let queueSuccess = false;
-		while (!queueSuccess) {
-			try {
-				const tx = await hecBridgeSplitterContract.connect(deployer).queueMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
-				await tx.wait();
-				queueSuccess = true;
-				console.log("Queue tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitQueue) + 1)
-			} catch (error) {
-				console.error("Queue transaction failed. Retrying...");
-			}
-			await waitSeconds(5);
-		}
-		await waitSeconds(5);
-	}
+	// 	let queueSuccess = false;
+	// 	while (!queueSuccess) {
+	// 		try {
+	// 			const tx = await hecBridgeSplitterContract.connect(deployer).queueMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+	// 			await tx.wait();
+	// 			queueSuccess = true;
+	// 			console.log("Queue tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitQueue) + 1)
+	// 		} catch (error) {
+	// 			console.error("Queue transaction failed. Retrying...");
+	// 		}
+	// 		await waitSeconds(5);
+	// 	}
+	// 	await waitSeconds(5);
+	// }
 
-	for(let i = 0; i < Math.floor(tokenList.length / tokenLimitToggle) + 1; i ++){
-		let tokens
-		if(tokenLimitToggle * (i + 1) - 1 > tokenList.length) 
-			tokens = tokenList.slice(i * tokenLimitToggle, tokenList.length)
-		else tokens = tokenList.slice(i * tokenLimitToggle, tokenLimitToggle * (i + 1))
-		let toggleSuccess = false
-		while (!toggleSuccess) {
-			try{
-				const tx1 = await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
-				await tx1.wait();
-				console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1)
-				toggleSuccess = true
-			}catch(error){
-				console.error("Toggle transaction failed. Retrying...");
-			}
-			await waitSeconds(5);
-		}
-		await waitSeconds(5);
-	}   
+	// for(let i = 0; i < Math.floor(tokenList.length / tokenLimitToggle) + 1; i ++){
+	// 	let tokens
+	// 	if(tokenLimitToggle * (i + 1) - 1 > tokenList.length) 
+	// 		tokens = tokenList.slice(i * tokenLimitToggle, tokenList.length)
+	// 	else tokens = tokenList.slice(i * tokenLimitToggle, tokenLimitToggle * (i + 1))
+	// 	let toggleSuccess = false
+	// 	while (!toggleSuccess) {
+	// 		try{
+	// 			const tx1 = await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+	// 			await tx1.wait();
+	// 			console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1)
+	// 			toggleSuccess = true
+	// 		}catch(error){
+	// 			console.error("Toggle transaction failed. Retrying...");
+	// 		}
+	// 		await waitSeconds(5);
+	// 	}
+	// 	await waitSeconds(5);
+	// }  
+	
+	//Remove deployer from moderator
+	await hecBridgeSplitterContract.setModerator(deployer.address, false);
+
+	//add multisig as moderator 
+	const multiSigAddress = '0x2ba5F2ce103A45e278D7Bc99153190eD6E9c4A96';	//Fantom
+	const multiSigDevAddress = '0xE693aD983eCdfE91F0E47992D869CEA60df425Be';	//Fantom
+
+	await hecBridgeSplitterContract.setModerator(multiSigAddress, true);
+
+	//add dev multisig as moderator
+	await hecBridgeSplitterContract.setModerator(multiSigDevAddress, true);
+
+	//Set the queueBlock to 8 hrs
+	await hecBridgeSplitterContract.setBlockQueue(28800);
+
+	//transfer ownership to multisig
+	await hecBridgeSplitterContract.transferOwnership(multiSigAddress);
 }
 
 main().catch((error) => {
