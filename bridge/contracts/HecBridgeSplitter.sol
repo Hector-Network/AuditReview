@@ -458,7 +458,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		for (uint256 i = 0; i < length; i++) {
 			if (reserveBridges[i] == _address) {
 				reserveBridges[i] = reserveBridges[length - 1];
-				reserveBridges.pop();
+				deleteLastAddress(reserveBridges);
 
 				isReserveBridge[_address] = false;
 				return true;
@@ -474,7 +474,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		for (uint256 i = 0; i < length; i++) {
 			if (reserveBridgeAssets[i] == _address) {
 				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
-				reserveBridgeAssets.pop();
+				deleteLastAddress(reserveBridgeAssets);
 
 				isReserveBridgeAsset[_address] = false;
 				return true;
@@ -528,6 +528,13 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
         emit ChangeQueued( _managing, _address );
         return true;
+    }
+	
+	function deleteLastAddress(address[] storage addressList) internal {
+        require(addressList.length > 0, "Array is empty");
+        uint lastIndex = addressList.length - 1;
+        delete addressList[lastIndex];
+        addressList.pop();
     }
 	
 }
