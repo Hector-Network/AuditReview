@@ -53,46 +53,28 @@ async function main() {
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGES, [lifiBridge, squidRouter]);
 
-	// for(let i = 0; i < Math.floor(tokenList.length / tokenLimitQueue) + 1; i ++){
-	// 	let tokens
-	// 	if(tokenLimitQueue * (i + 1) - 1 > tokenList.length) 
-	// 		tokens = tokenList.slice(i * tokenLimitQueue, tokenList.length)
-	// 	else tokens = tokenList.slice(i * tokenLimitQueue, tokenLimitQueue * (i + 1))
+	for(let i = 0; i < Math.floor(tokenList.length / tokenLimitQueue) + 1; i ++){
+		let tokens
+		if(tokenLimitQueue * (i + 1) - 1 > tokenList.length) 
+			tokens = tokenList.slice(i * tokenLimitQueue, tokenList.length)
+		else tokens = tokenList.slice(i * tokenLimitQueue, tokenLimitQueue * (i + 1))
 		
-	// 	let queueSuccess = false;
-	// 	while (!queueSuccess) {
-	// 		try {
-	// 			const tx = await hecBridgeSplitterContract.connect(deployer).queueMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
-	// 			await tx.wait();
-	// 			queueSuccess = true;
-	// 			console.log("Queue tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitQueue) + 1)
-	// 		} catch (error) {
-	// 			console.error("Queue transaction failed. Retrying...");
-	// 		}
-	// 		await waitSeconds(5);
-	// 	}
-	// 	await waitSeconds(5);
-	// }
-
-	// for(let i = 0; i < Math.floor(tokenList.length / tokenLimitToggle) + 1; i ++){
-	// 	let tokens
-	// 	if(tokenLimitToggle * (i + 1) - 1 > tokenList.length) 
-	// 		tokens = tokenList.slice(i * tokenLimitToggle, tokenList.length)
-	// 	else tokens = tokenList.slice(i * tokenLimitToggle, tokenLimitToggle * (i + 1))
-	// 	let toggleSuccess = false
-	// 	while (!toggleSuccess) {
-	// 		try{
-	// 			const tx1 = await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
-	// 			await tx1.wait();
-	// 			console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1)
-	// 			toggleSuccess = true
-	// 		}catch(error){
-	// 			console.error("Toggle transaction failed. Retrying...");
-	// 		}
-	// 		await waitSeconds(5);
-	// 	}
-	// 	await waitSeconds(5);
-	// }  
+		let queueSuccess = false;
+		while (!queueSuccess) {
+			try {
+				const tx = await hecBridgeSplitterContract.connect(deployer).queueMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+				await waitSeconds(3);
+				const tx1 = await hecBridgeSplitterContract.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
+				await waitSeconds(3);
+				queueSuccess = true;
+				console.log("Queue tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitQueue) + 1)
+			} catch (error) {
+				console.error("Queue transaction failed. Retrying...");
+			}
+			await waitSeconds(5);
+		}
+		await waitSeconds(5);
+	}	 
 	
 	//Remove deployer from moderator
 	await hecBridgeSplitterContract.setModerator(deployer.address, false);
