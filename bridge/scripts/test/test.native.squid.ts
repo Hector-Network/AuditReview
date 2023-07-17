@@ -3,8 +3,9 @@ const hre = require('hardhat');
 const { ethers } = require('hardhat');
 const abi = require('../../artifacts/contracts/HecBridgeSplitter.sol/HecBridgeSplitter.json');
 const erc20Abi = require('../../artifacts/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol/IERC20Upgradeable.json');
-const tempStepData = require('./dataForWithdrawTestCase.json');
-import {MANAGING} from '../deployHecBridgeSplitter'
+const tempStepData = require('./dataForNativeTokenTestCase.json');
+
+
 require('dotenv').config();
 
 async function main() {
@@ -12,8 +13,9 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0x8d46a6C31621d327F5317567B12Cf61A66f88fb3";
-
+	// const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
+	const SPLITTER_ADDRESS = "0x9F9b48704B965bB889A988f2A638B5B526544380";
+	
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
 	const testHecBridgeSplitterContract = new ethers.Contract(
@@ -39,10 +41,12 @@ async function main() {
 		callData: tempStepData.transactionRequest.data,
 		sendingAmount: tempStepData.params.fromAmount, // This is calculated amount except fee for using Bridge 
 		totalAmount: BigNumber.from(tempStepData.params.fromAmount)
-						.add(BigNumber.from("10000000000000000"))
+						.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
 						.toString(), // Mock Total Amount
-		feeAmount: BigNumber.from("10000000000000000").toString(),
-		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value).toString(),
+		feeAmount: BigNumber.from(tempStepData.params.fromAmount).div(10).toString(),
+		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value)
+						.sub(BigNumber.from(tempStepData.params.fromAmount))
+						.toString()
 	};
 
 	// Sending Asset Id
@@ -119,9 +123,14 @@ async function main() {
 		console.log('Done token allowance setting');
 	}
 
-	console.log({ fee: fee.toString(), fees });
+	console.log({ value: fee.toString() });
 	console.log({ useSquid: true, targetAddress });
 	console.log('Start bridge...');
+
+	console.log({
+		value: BigNumber.from(tempStepData.transactionRequest.value)
+				.add(BigNumber.from(tempStepData.params.fromAmount).div(10)).toString()
+	})
 
 	try {
 		const result = await testHecBridgeSplitterContract.bridgeNative(
@@ -129,7 +138,7 @@ async function main() {
 			targetAddress,
 			{
 				value: BigNumber.from(tempStepData.transactionRequest.value)
-					.add(BigNumber.from("10000000000000000")),
+					.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
 			}
 		);
 		const resultWait = await result.wait();

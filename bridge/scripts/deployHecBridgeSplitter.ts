@@ -24,7 +24,7 @@ async function main() {
 	const gas = await ethers.provider.getGasPrice();
 	console.log("Gas Price: ", gas);
 
-	const chainID = '250'
+	const chainID = '137'
 	const tokenLimitQueue = process.env.ftmTokenLimitQueue? parseInt(process.env.ftmTokenLimitQueue) : 400
 	const tokenLimitToggle = process.env.ftmTokenLimitToggle ? parseInt(process.env.ftmTokenLimitToggle) : 40
 	const tokenList = await getTokenList(chainID)
