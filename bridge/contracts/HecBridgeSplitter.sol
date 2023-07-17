@@ -187,13 +187,14 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		uint length = sendingAssetInfos.length;
 		for (uint i = 0; i < length; i++) {
 			bytes memory callData = sendingAssetInfos[i].callData;
+			uint256 fee = sendingAssetInfos[i].bridgeFee;
 			uint256 sendValue = sendingAssetInfos[i].bridgeFee + sendingAssetInfos[i].sendingAmount;
-			if (sendValue > 0) {
+			if (fee > 0) {
 				(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(callData);
 				if (!success) revert(_getRevertMsg(result));
 				emit MakeCallData(success, callData, msg.sender);
 			} else {
-				(bool success, bytes memory result) = payable(callTargetAddress).call(callData);
+				(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(callData);
 				if (!success) revert(_getRevertMsg(result));
 				emit MakeCallData(success, callData, msg.sender);
 			}
