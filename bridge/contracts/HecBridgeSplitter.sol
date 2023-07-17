@@ -226,7 +226,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 			require(totalAmount == sendingAmount + feeAmount, 'Bridge: Invalid asset info');
 
-			if (feeAmount < (totalAmount * minFeePercentage) / 1000) revert INVALID_DAO_FEE();
+			if (feeAmount < (sendingAmount * minFeePercentage) / 1000) revert INVALID_DAO_FEE();
 
 			totalAmounts += totalAmount;
 			sendAmounts += sendingAmount;
