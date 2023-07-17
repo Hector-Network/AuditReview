@@ -12,7 +12,8 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
+	// const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
+	const SPLITTER_ADDRESS = "0x9F9b48704B965bB889A988f2A638B5B526544380";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
