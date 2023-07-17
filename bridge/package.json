@@ -21,7 +21,7 @@
     "deploy-pure":"npx hardhat run ./scripts/deployImplementation.ts --network ftmtest",
     "deploy-all":"npx hardhat run ./scripts/deployAll.ts",
     "transfer-all": "npx hardhat run ./scripts/transferOwnership.ts",
-    "test-certik":"npx hardhat run ./scripts/test/test.ts --network ftmtest"
+    "test-certik":"npx hardhat run ./scripts/test/test.certik.ts --network ftmtest"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.12",
