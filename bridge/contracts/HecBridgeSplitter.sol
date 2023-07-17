@@ -73,9 +73,9 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	/* ======== INITIALIZATION ======== */
 
 	/// @custom:oz-upgrades-unsafe-allow constructor
-	constructor() {
-		_disableInitializers();
-	}
+	// constructor() {
+	// 	_disableInitializers();
+	// }
 
 	/**
 	 * @dev sets initials

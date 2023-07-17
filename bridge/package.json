@@ -18,7 +18,7 @@
     "unit-test-lifi": "hardhat test ./test/bridge.lifi.test.ts --network polygon",
     "unit-test-squid": "hardhat test ./test/bridge.squid.test.ts --network ftm",
     "test": "hardhat test --network ftm",
-    "deploy-pure":"npx hardhat run ./scripts/deployImplementation.ts --network ftm",
+    "deploy-pure":"npx hardhat run ./scripts/deployImplementation.ts --network ftmtest",
     "deploy-all":"npx hardhat run ./scripts/deployAll.ts",
     "transfer-all": "npx hardhat run ./scripts/transferOwnership.ts"
   },
