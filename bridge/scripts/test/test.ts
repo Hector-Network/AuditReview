@@ -1,9 +1,4 @@
-import { BigNumber } from '@ethersproject/bignumber';
-const hre = require('hardhat');
 const { ethers } = require('hardhat');
-const abi = require('../../artifacts/contracts/HecBridgeSplitter.sol/HecBridgeSplitter.json');
-const erc20Abi = require('../../artifacts/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol/IERC20Upgradeable.json');
-const tempStepData = require('./dataForBridgeNativeLiFi.json');
 require('dotenv').config();
 
 async function main() {
