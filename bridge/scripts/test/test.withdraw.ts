@@ -3,7 +3,8 @@ const hre = require('hardhat');
 const { ethers } = require('hardhat');
 const abi = require('../../artifacts/contracts/HecBridgeSplitter.sol/HecBridgeSplitter.json');
 const erc20Abi = require('../../artifacts/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol/IERC20Upgradeable.json');
-const tempStepData = require('./tempStepDataForSquid.json');
+const tempStepData = require('./dataForWithdrawTestCase.json');
+import {MANAGING} from '../deployHecBridgeSplitter'
 require('dotenv').config();
 
 async function main() {
@@ -11,7 +12,8 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
-	const SPLITTER_ADDRESS = "0xAC09461FAfe048440324a905924eF9e101f3EFE4";
+	// const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
+	const SPLITTER_ADDRESS = "0x9F9b48704B965bB889A988f2A638B5B526544380";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
@@ -37,9 +39,14 @@ async function main() {
 	const mockSendingAssetInfo1 = {
 		callData: tempStepData.transactionRequest.data,
 		sendingAmount: tempStepData.params.fromAmount, // This is calculated amount except fee for using Bridge 
-		totalAmount: BigNumber.from('11000').toString(), // Mock Total Amount
-		feeAmount: BigNumber.from('11000').sub(BigNumber.from(tempStepData.params.fromAmount)).toString(), // MockFee - 0.075%
-		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value).toString(),
+		totalAmount: BigNumber.from(tempStepData.params.fromAmount)
+						.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
+						.toString(), // Mock Total Amount
+		feeAmount: BigNumber.from(tempStepData.params.fromAmount).div(10).toString(),
+		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value)
+						.sub(BigNumber.from(tempStepData.params.fromAmount))
+						.sub(BigNumber.from(tempStepData.params.fromAmount).div(10))
+						.toString(),
 	};
 
 	// Sending Asset Id
@@ -118,24 +125,38 @@ async function main() {
 
 	console.log({ fee: fee.toString(), fees });
 	console.log({ useSquid: true, targetAddress });
-	const isInWhiteList = await testHecBridgeSplitterContract.isInWhiteList(targetAddress);
-	console.log("isWhiteList:", isInWhiteList);
 	console.log('Start bridge...');
 
+	console.log({
+			value: BigNumber.from("100000")
+				.add(BigNumber.from(tempStepData.transactionRequest.value))
+				.add(BigNumber.from(tempStepData.params.fromAmount).div(10)).toString()
+		})
 	try {
-		const result = await testHecBridgeSplitterContract.bridge(
-			sendingAsset,
+		const result = await testHecBridgeSplitterContract.bridgeNative(
 			mockSendingAssetInfos,
 			targetAddress,
 			{
-				value: fee,
+				value: BigNumber.from("0")
+					.add(BigNumber.from(tempStepData.transactionRequest.value))
+					.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
 			}
 		);
 		const resultWait = await result.wait();
 		console.log('Done bridge Tx:', resultWait.transactionHash);
+		console.log("Withdraw native token from contract:")
+
+		const array = []
+		array.push(ZERO_ADDRESS)
+
+		let tx = await testHecBridgeSplitterContract.withdrawTokens(array)
+		const txResult = await tx.wait();
+		console.log('Done Tx:', txResult.transactionHash);
 	} catch (e) {
 		console.log(e);
 	}
+
+	
 }
 
 main().catch((error) => {
