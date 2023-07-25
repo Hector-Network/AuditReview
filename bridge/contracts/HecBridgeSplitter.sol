@@ -86,7 +86,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		address _dao
 	) external initializer {
 		if (_CountDest == 0 || _dao == address(0)) revert INVALID_PARAM();
-		// if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
