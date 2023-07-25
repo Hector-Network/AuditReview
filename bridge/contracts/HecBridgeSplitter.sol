@@ -235,7 +235,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 			uint256 afterBalance = srcToken.balanceOf(address(this));
 			if (afterBalance - beforeBalance != totalAmounts) revert INVALID_AMOUNT();
 			// Approve targetAddress
-			require(srcToken.approve(callTargetAddress, sendAmounts), 'Approve Error');
+			require(srcToken.safeApprove(callTargetAddress, sendAmounts), 'Approve Error');
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
