@@ -4,7 +4,7 @@ pragma solidity ^0.8.7;
 import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
-import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol';
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 
 error INVALID_PARAM();
@@ -21,9 +21,11 @@ error INVALID_MODERATOR();
 /**
  * @title HecBridgeSplitter
  */
-contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
+contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	using SafeERC20Upgradeable for IERC20Upgradeable;
 	using EnumerableSet for EnumerableSet.AddressSet;
+
+	bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 	// Struct Asset Info
 	struct SendingAssetInfo {
 		bytes callData;
@@ -52,9 +54,6 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	mapping(address => uint) public reserveBridgeQueue; // Delays changes to mapping.
 
 	mapping(address => uint) public reserveBridgeAssetQueue; // Delays changes to mapping.
-
-	/// @notice moderators data
-	mapping(address => bool) public moderators;
 
 	// Events
 	event SetCountDest(uint256 oldCountDest, uint256 newCountDest, address indexed user);
@@ -94,18 +93,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		minFeePercentage = 1;
 		DAO = _dao;
 		__Pausable_init();
-		__Ownable_init();
-
-		//Initialize moderator
-		moderators[owner()] = true;
+ 		_setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+		_setupRole(MODERATOR_ROLE, msg.sender);
 	}
 
-	/* ======== MODIFIER ======== */
-
-	modifier onlyMod() {
-		if (!moderators[msg.sender]) revert INVALID_MODERATOR();
-		_;
-	}
 
 	/* ======== VIEW FUNCTIONS ======== */
 	/// @notice Returns the length of ReserveBridges array
@@ -121,11 +112,11 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	/* ======== POLICY FUNCTIONS ======== */
 
-	function pause() external onlyOwner {
+	function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
 		_pause();
 	}
 
-	function unpause() external onlyOwner {
+	function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
 		_unpause();
 	}
 
@@ -270,7 +261,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @notice set how many bridges the contract can process
         @param _countDest new count dest
      */
-	function setCountDest(uint256 _countDest) external onlyOwner {
+	function setCountDest(uint256 _countDest) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		if (_countDest == 0) revert INVALID_PARAM();
 		uint256 oldCountDest = CountDest;
 		CountDest = _countDest;
@@ -281,7 +272,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @notice set DAO address
         @param newDAO new DAO address
      */
-	function setDAO(address newDAO) external onlyOwner {
+	function setDAO(address newDAO) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		if (newDAO == address(0)) revert INVALID_ADDRESS();
 		address oldDAO = DAO;
 
@@ -293,7 +284,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @notice set version
         @param _version new version
      */
-	function setVersion(string calldata _version) external onlyOwner {
+	function setVersion(string calldata _version) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		version = _version;
 		emit SetVersion(_version);
 	}
@@ -302,7 +293,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @notice set Block Queue 
         @param _blocksNeededForQueue new queue block
      */
-	function setBlockQueue(uint256 _blocksNeededForQueue) external onlyOwner {
+	function setBlockQueue(uint256 _blocksNeededForQueue) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 		uint256 oldValue = blocksNeededForQueue;
 		blocksNeededForQueue = _blocksNeededForQueue;
@@ -314,7 +305,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @notice set Minimum free percentage 
         @param _feePercentage new percentage
      */
-	function setMinFeePercentage(uint _feePercentage) external onlyOwner {
+	function setMinFeePercentage(uint _feePercentage) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		require(_feePercentage > 0 && _feePercentage < 1000, 'Invalid percentage');
 		minFeePercentage = _feePercentage;
 		emit SetMinFeePercentage(_feePercentage);
@@ -325,16 +316,17 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _moderator new/existing wallet address
 		@param _approved active/inactive flag
      */
-	function setModerator(address _moderator, bool _approved) external onlyOwner {
+	function setModerator(address _moderator, bool _approved) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		if (_moderator == address(0)) revert INVALID_ADDRESS();
-		moderators[_moderator] = _approved;
+		if(_approved) grantRole(MODERATOR_ROLE, _moderator);
+		else revokeRole(MODERATOR_ROLE, _moderator);
 	}
 
 	/**
         @notice withdraw tokens from contract
         @param _tokens array of tokens to withdraw
     **/
-	function withdrawTokens(address[] memory _tokens) external onlyOwner {
+	function withdrawTokens(address[] memory _tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		uint256 length = _tokens.length;
 
 		for (uint256 i = 0; i < length; i++) {
@@ -358,7 +350,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-	function queue(MANAGING _managing, address _address) external onlyMod returns (bool) {
+	function queue(MANAGING _managing, address _address) external onlyRole(MODERATOR_ROLE) returns (bool) {
 		return _queue(_managing, _address);
 	}
 
@@ -367,7 +359,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _managing MANAGING
         @param addresses address[]
      */
-	function queueMany(MANAGING _managing, address[] calldata addresses) external onlyMod {
+	function queueMany(MANAGING _managing, address[] calldata addresses) external onlyRole(MODERATOR_ROLE) {
 		uint256 length = addresses.length;
 
 		for (uint256 i = 0; i < length; i++) {
@@ -382,7 +374,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-	function toggle(MANAGING _managing, address _address) external onlyMod returns (bool) {
+	function toggle(MANAGING _managing, address _address) external onlyRole(MODERATOR_ROLE) returns (bool) {
 		return _toggle(_managing, _address);
 	}
 
@@ -391,7 +383,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _managing MANAGING
         @param addresses address[]
      */
-	function toggleMany(MANAGING _managing, address[] calldata addresses) external onlyMod {
+	function toggleMany(MANAGING _managing, address[] calldata addresses) external onlyRole(MODERATOR_ROLE) {
 		uint256 length = addresses.length;
 
 		for (uint256 i = 0; i < length; i++) {
@@ -405,7 +397,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-	function removeReserveBridge(address _address) external onlyMod returns (bool) {
+	function removeReserveBridge(address _address) external onlyRole(MODERATOR_ROLE) returns (bool) {
 		return _removeReserveBridge(_address);
 	}
 
@@ -414,7 +406,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
         @param _address address
         @return bool
      */
-	function removeReserveBridgeAsset(address _address) external onlyMod returns (bool) {
+	function removeReserveBridgeAsset(address _address) external onlyRole(MODERATOR_ROLE) returns (bool) {
 		return _removeReserveBridgeAsset(_address);
 	}
 
