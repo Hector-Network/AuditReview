@@ -31,36 +31,11 @@ async function main() {
 
 	console.log("Supported token addresses count:", tokenList.length)
 	const hecBridgeSplitterFactory = await ethers.getContractFactory("HecBridgeSplitter");
-	console.log("Deploying HecBridgeSplitter Contract...");
-
-	// const proxyAdmin = await hecBridgeSplitterFactory.attach("0x702408e2502792c8A13cc3096B4A14872eF52A98")
-
-	// for(let i = 0; i < Math.floor(tokenList.length / tokenLimitToggle) + 1; i ++){
-	// 	let tokens
-	// 	if(tokenLimitToggle * (i + 1) - 1 > tokenList.length) 
-	// 		tokens = tokenList.slice(i * tokenLimitToggle, tokenList.length)
-	// 	else tokens = tokenList.slice(i * tokenLimitToggle, (i + 1) * tokenLimitToggle )
-	// 	let toggleSuccess = false
-	// 	while (!toggleSuccess) {
-	// 		try{
-	// 			const tx1 = await proxyAdmin.connect(deployer).toggleMany(MANAGING.RESERVE_BRIDGE_ASSETS, tokens);
-	// 			await tx1.wait();
-	// 			console.log("Toggle tokens", i + 1, "out of ", Math.floor(tokenList.length / tokenLimitToggle) + 1)
-	// 			toggleSuccess = true
-	// 		}catch(error){
-	// 			console.error("Toggle transaction failed. Retrying...");
-	// 			console.log(error)
-	// 			console.log(tokens)
-	// 		}
-	// 		await waitSeconds(5);
-	// 	}
-	// 	await waitSeconds(5);
-	// }
-		
+	console.log("Deploying HecBridgeSplitter Contract...");	
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest, blocksNeededForQueue],
+		[_countDest, blocksNeededForQueue, DAO],
 		{
 			gas: gas,
 			initializer: "initialize",
@@ -72,8 +47,6 @@ async function main() {
 	// Set Parameter
 	console.log("Setting parameters...");
 	await hecBridgeSplitterContract.connect(deployer).setMinFeePercentage(feePercentage);
-	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).setDAO(DAO);
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);

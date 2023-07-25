@@ -80,13 +80,18 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	/**
 	 * @dev sets initials
 	 */
-	function initialize(uint256 _CountDest, uint256 _blocksNeededForQueue) external initializer {
-		if (_CountDest == 0) revert INVALID_PARAM();
+	function initialize(
+		uint256 _CountDest,
+		uint256 _blocksNeededForQueue,
+		address _dao
+	) external initializer {
+		if (_CountDest == 0 || _dao == address(0)) revert INVALID_PARAM();
 		// if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
 		minFeePercentage = 1;
+		DAO = _dao;
 		__Pausable_init();
 		__Ownable_init();
 
@@ -188,7 +193,9 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		for (uint i = 0; i < length; i++) {
 			bytes memory callData = sendingAssetInfos[i].callData;
 			uint256 sendValue = sendingAssetInfos[i].bridgeFee + sendingAssetInfos[i].sendingAmount;
-			(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(callData);
+			(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(
+				callData
+			);
 			if (!success) revert(_getRevertMsg(result));
 			emit MakeCallData(success, callData, msg.sender);
 		}
