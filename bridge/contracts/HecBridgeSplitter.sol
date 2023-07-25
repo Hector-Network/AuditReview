@@ -137,7 +137,8 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
 				ReserveBridges.contains(callTargetAddress) &&
-				ReserveBridgeAssets.contains(sendingAsset),
+				ReserveBridgeAssets.contains(sendingAsset) &&
+				callTargetAddress != address(0)
 			'Bridge: Invalid parameters'
 		);
 
@@ -175,7 +176,8 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				ReserveBridges.contains(callTargetAddress),
+				ReserveBridges.contains(callTargetAddress) &&
+				callTargetAddress != address(0),
 			'Bridge: Invalid parameters'
 		);
 
