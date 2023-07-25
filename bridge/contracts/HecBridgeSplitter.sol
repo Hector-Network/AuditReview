@@ -5,6 +5,7 @@ import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
@@ -22,6 +23,7 @@ error INVALID_MODERATOR();
  */
 contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	using SafeERC20Upgradeable for IERC20Upgradeable;
+	using EnumerableSet for EnumerableSet.AddressSet;
 	// Struct Asset Info
 	struct SendingAssetInfo {
 		bytes callData;
@@ -44,12 +46,11 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	uint256 public blocksNeededForQueue;
 	uint256 public constant MINQUEUETIME = 28800; // 8 hours
 
-	address[] public reserveBridges;
-	mapping(address => bool) public isReserveBridge;
+	EnumerableSet.AddressSet private ReserveBridges;
+	EnumerableSet.AddressSet private ReserveBridgeAssets;
+
 	mapping(address => uint) public reserveBridgeQueue; // Delays changes to mapping.
 
-	address[] public reserveBridgeAssets;
-	mapping(address => bool) public isReserveBridgeAsset;
 	mapping(address => uint) public reserveBridgeAssetQueue; // Delays changes to mapping.
 
 	/// @notice moderators data
@@ -107,15 +108,16 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 	}
 
 	/* ======== VIEW FUNCTIONS ======== */
-	/// @notice Returns the length of reserveBridges array
+	/// @notice Returns the length of ReserveBridges array
 	function getReserveBridgesCount() external view returns (uint256) {
-		return reserveBridges.length;
+		return ReserveBridges.length();
 	}
 
-	/// @notice Returns the length of reserveBridgeAssets array
+	/// @notice Returns the length of ReserveBridgeAssets array
 	function getReserveBridgeAssetsCount() external view returns (uint256) {
-		return reserveBridgeAssets.length;
+		return ReserveBridgeAssets.length();
 	}
+
 
 	/* ======== POLICY FUNCTIONS ======== */
 
@@ -143,8 +145,8 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isReserveBridge[callTargetAddress] &&
-				isReserveBridgeAsset[sendingAsset],
+				ReserveBridges.contains(callTargetAddress) &&
+				ReserveBridgeAssets.contains(sendingAsset),
 			'Bridge: Invalid parameters'
 		);
 
@@ -182,7 +184,7 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		require(
 			sendingAssetInfos.length > 0 &&
 				sendingAssetInfos.length <= CountDest &&
-				isReserveBridge[callTargetAddress],
+				ReserveBridges.contains(callTargetAddress),
 			'Bridge: Invalid parameters'
 		);
 
@@ -425,10 +427,10 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
      */
 	function requirements(
 		mapping(address => uint) storage queue_,
-		mapping(address => bool) storage status_,
+		EnumerableSet.AddressSet storage status_,
 		address _address
 	) internal view returns (bool) {
-		if (!status_[_address]) {
+		if (!status_.contains(_address)) {
 			if (queue_[_address] == 0) revert MUST_QUEUE();
 			if (queue_[_address] > block.timestamp) revert QUEUE_NOT_EXPIRED();
 			return true;
@@ -453,34 +455,20 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 
 	function _removeReserveBridge(address _address) internal returns (bool) {
 		if (_address == address(0)) revert INVALID_ADDRESS();
-
-		uint256 length = reserveBridges.length;
-		for (uint256 i = 0; i < length; i++) {
-			if (reserveBridges[i] == _address) {
-				reserveBridges[i] = reserveBridges[length - 1];
-				deleteLastAddress(reserveBridges);
-
-				isReserveBridge[_address] = false;
-				return true;
-			}
-		}
-		return false;
+		bool isContained = ReserveBridges.contains(_address);
+		if(isContained) {
+			ReserveBridges.remove(_address);
+			return true;
+		}else return false;
 	}
 
 	function _removeReserveBridgeAsset(address _address) internal returns (bool) {
 		if (_address == address(0)) revert INVALID_ADDRESS();
-
-		uint256 length = reserveBridgeAssets.length;
-		for (uint256 i = 0; i < length; i++) {
-			if (reserveBridgeAssets[i] == _address) {
-				reserveBridgeAssets[i] = reserveBridgeAssets[length - 1];
-				deleteLastAddress(reserveBridgeAssets);
-
-				isReserveBridgeAsset[_address] = false;
-				return true;
-			}
-		}
-		return false;
+		bool isContained = ReserveBridgeAssets.contains(_address);
+		if(isContained) {
+			ReserveBridgeAssets.remove(_address);
+			return true;
+		}else return false;
 	}
 
 	function _toggle(MANAGING _managing, address _address) internal returns (bool) {
@@ -488,26 +476,26 @@ contract HecBridgeSplitter is OwnableUpgradeable, PausableUpgradeable {
 		bool result;
 		if (_managing == MANAGING.RESERVE_BRIDGES) {
 			// 0
-			if (requirements(reserveBridgeQueue, isReserveBridge, _address)) {
+			if (requirements(reserveBridgeQueue, ReserveBridges, _address)) {
 				reserveBridgeQueue[_address] = 0;
-				if (!listContains(reserveBridges, _address)) {
-					reserveBridges.push(_address);
+				if (!ReserveBridges.contains(_address)) {
+					ReserveBridges.add(_address);
 				}
 			}
-			result = !isReserveBridge[_address];
-			if (result) isReserveBridge[_address] = result;
-			else _removeReserveBridge(_address);
+			result = !ReserveBridges.contains(_address);
+			if (result) ReserveBridges.add(_address);
+			else ReserveBridges.remove(_address);
 		} else if (_managing == MANAGING.RESERVE_BRIDGE_ASSETS) {
 			// 1
-			if (requirements(reserveBridgeAssetQueue, isReserveBridgeAsset, _address)) {
+			if (requirements(reserveBridgeAssetQueue, ReserveBridgeAssets, _address)) {
 				reserveBridgeAssetQueue[_address] = 0;
-				if (!listContains(reserveBridgeAssets, _address)) {
-					reserveBridgeAssets.push(_address);
+				if (!ReserveBridgeAssets.contains(_address)) {
+					ReserveBridgeAssets.add(_address);
 				}
 			}
-			result = !isReserveBridgeAsset[_address];
-			if (result) isReserveBridgeAsset[_address] = result;
-			else _removeReserveBridgeAsset(_address);
+			result = !ReserveBridgeAssets.contains(_address);
+			if (result) ReserveBridgeAssets.add(_address);
+			else ReserveBridgeAssets.remove(_address);
 		} else return false;
 
 		emit ChangeActivated(_managing, _address, result);
