@@ -65,10 +65,13 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	event AddCallAddress(address _callAddress, address _owner);
 	event RemoveCallAddress(address _callAddress, address _owner);
 	event ApproveToken(address _srcToken, address _callAddress, uint256 _amount);
-
+	event SetModerator(address _moderator, bool _approved);
 	event ChangeQueued(MANAGING indexed managing, address queued);
 	event ChangeActivated(MANAGING indexed managing, address activated, bool result);
 	event SetBlockQueue(uint256 oldBlockQueue, uint256 newBlockQueue);
+	event WithdrawTokens(address[] _tokens);
+	event RemoveReserveBridge(address bridge);
+	event RemoveReserveBridgeAssets(address bridge);
 
 	/* ======== INITIALIZATION ======== */
 
@@ -138,7 +141,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 				sendingAssetInfos.length <= CountDest &&
 				ReserveBridges.contains(callTargetAddress) &&
 				ReserveBridgeAssets.contains(sendingAsset) &&
-				callTargetAddress != address(0)
+				callTargetAddress != address(0),
 			'Bridge: Invalid parameters'
 		);
 
@@ -237,7 +240,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 			uint256 afterBalance = srcToken.balanceOf(address(this));
 			if (afterBalance - beforeBalance != totalAmounts) revert INVALID_AMOUNT();
 			// Approve targetAddress
-			require(srcToken.safeApprove(callTargetAddress, sendAmounts), 'Approve Error');
+			srcToken.safeApprove(callTargetAddress, sendAmounts);
 			// Take Fee
 			srcToken.safeTransfer(DAO, feeAmounts);
 		} else {
@@ -322,6 +325,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		if (_moderator == address(0)) revert INVALID_ADDRESS();
 		if(_approved) grantRole(MODERATOR_ROLE, _moderator);
 		else revokeRole(MODERATOR_ROLE, _moderator);
+		emit SetModerator(_moderator, _approved);
 	}
 
 	/**
@@ -344,6 +348,8 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 				}
 			}
 		}
+
+		emit WithdrawTokens(_tokens);
 	}
 
 	/**
@@ -452,6 +458,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		bool isContained = ReserveBridges.contains(_address);
 		if(isContained) {
 			ReserveBridges.remove(_address);
+			emit RemoveReserveBridge(_address);
 			return true;
 		}else return false;
 	}
@@ -461,6 +468,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		bool isContained = ReserveBridgeAssets.contains(_address);
 		if(isContained) {
 			ReserveBridgeAssets.remove(_address);
+			emit RemoveReserveBridgeAssets(_address);
 			return true;
 		}else return false;
 	}
