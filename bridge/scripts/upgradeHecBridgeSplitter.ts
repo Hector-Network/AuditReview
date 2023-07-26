@@ -3,7 +3,7 @@ const { ethers, upgrades  } = require("hardhat");
 require("dotenv").config();
 
 // const UPGRADEABLE_PROXY = process.env.FTM_MAIN_SPLITTER_ADDRESS;
-const UPGRADEABLE_PROXY = "0x9F9b48704B965bB889A988f2A638B5B526544380";
+const UPGRADEABLE_PROXY = "0xd85F867DC380F9B64177775CC2A7d716ee7e4a31";
 
 async function main() {
   const [deployer] = await ethers.getSigners();

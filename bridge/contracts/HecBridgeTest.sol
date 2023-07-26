@@ -14,7 +14,7 @@ contract HecBridgeSplitterTest {
 	function setUp() public {
 		bridge = new HecBridgeSplitter();
 		address DAO = address(1);
-		bridge.initialize(1, 0);
+		bridge.initialize(1, 0, address(1));
 		bridge.setDAO(DAO);
         
 	}
