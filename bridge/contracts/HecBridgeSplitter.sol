@@ -89,7 +89,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		address _dao
 	) external initializer {
 		if (_CountDest == 0 || _dao == address(0)) revert INVALID_PARAM();
-		// if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		// if (_blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
@@ -153,14 +153,17 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		for (uint i = 0; i < length; i++) {
 			bytes memory callData = sendingAssetInfos[i].callData;
 			uint256 fee = sendingAssetInfos[i].bridgeFee;
+			bool success;
+			bytes memory result;
+
 			if (fee > 0) {
-				(bool success, bytes memory result) = payable(callTargetAddress).call{value: fee}(callData);
-				if (!success) revert(_getRevertMsg(result));
+				(success, result) = payable(callTargetAddress).call{value: fee}(callData);
 				emit MakeCallData(success, callData, msg.sender);
+				if (!success) revert(_getRevertMsg(result));
 			} else {
-				(bool success, bytes memory result) = payable(callTargetAddress).call(callData);
-				if (!success) revert(_getRevertMsg(result));
+				(success, result) = payable(callTargetAddress).call(callData);
 				emit MakeCallData(success, callData, msg.sender);
+				if (!success) revert(_getRevertMsg(result));
 			}
 		}
 		emit HectorBridge(msg.sender, sendingAssetInfos);
@@ -195,8 +198,8 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 			(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(
 				callData
 			);
-			if (!success) revert(_getRevertMsg(result));
 			emit MakeCallData(success, callData, msg.sender);
+			if (!success) revert(_getRevertMsg(result));
 		}
 		emit HectorBridge(msg.sender, sendingAssetInfos);
 	}
@@ -300,7 +303,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
         @param _blocksNeededForQueue new queue block
      */
 	function setBlockQueue(uint256 _blocksNeededForQueue) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		if (_blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 		uint256 oldValue = blocksNeededForQueue;
 		blocksNeededForQueue = _blocksNeededForQueue;
 
@@ -420,15 +423,15 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	}
 
 	/**
-        @notice checks requirements and returns altered structs
+        @notice checks requirements for adding and returns altered structs
         @param queue_ mapping( address => uint )
-        @param status_ mapping( address => bool )
+        @param status_ EnumerableSet.AddressSet
         @param _address address
         @return bool 
      */
-	function requirements(
+	function requirementsForAdd(
 		mapping(address => uint) storage queue_,
-		EnumerableSetUpgradeable.AddressSet storage status_,
+		EnumerableSet.AddressSet storage status_,
 		address _address
 	) internal view returns (bool) {
 		if (!status_.contains(_address)) {
@@ -440,17 +443,20 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	}
 
 	/**
-        @notice checks array to ensure against duplicate
-        @param _list address[]
-        @param _token address
-        @return bool
+        @notice checks requirements for removing and returns altered structs
+        @param queue_ mapping( address => uint )
+        @param status_ EnumerableSet.AddressSet
+        @param _address address
+        @return bool 
      */
-	function listContains(address[] storage _list, address _token) internal view returns (bool) {
-		for (uint i = 0; i < _list.length; i++) {
-			if (_list[i] == _token) {
-				return true;
-			}
-		}
+	function requirementsForRemove(
+		mapping(address => uint) storage queue_,
+		EnumerableSet.AddressSet storage status_,
+		address _address
+	) internal view returns (bool) {
+		if (queue_[_address] == 0) revert MUST_QUEUE();
+		if (queue_[_address] > block.timestamp) revert QUEUE_NOT_EXPIRED();
+		if(status_.contains(_address)) return true
 		return false;
 	}
 
@@ -479,26 +485,22 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		bool result;
 		if (_managing == MANAGING.RESERVE_BRIDGES) {
 			// 0
-			if (requirements(reserveBridgeQueue, ReserveBridges, _address)) {
+			if (requirementsForAdd(reserveBridgeQueue, ReserveBridges, _address)) {
 				reserveBridgeQueue[_address] = 0;
-				if (!ReserveBridges.contains(_address)) {
-					ReserveBridges.add(_address);
-				}
-			}
-			result = !ReserveBridges.contains(_address);
-			if (result) ReserveBridges.add(_address);
-			else ReserveBridges.remove(_address);
+				ReserveBridges.add(_address);
+			} else if(requirementsForRemove(reserveBridgeQueue, ReserveBridges, _address)) {
+				reserveBridgeQueue[_address] = 0;
+				ReserveBridges.remove(_address);
+			} else return false;
 		} else if (_managing == MANAGING.RESERVE_BRIDGE_ASSETS) {
 			// 1
-			if (requirements(reserveBridgeAssetQueue, ReserveBridgeAssets, _address)) {
+			if (requirementsForAdd(reserveBridgeAssetQueue, ReserveBridgeAssets, _address)) {
 				reserveBridgeAssetQueue[_address] = 0;
-				if (!ReserveBridgeAssets.contains(_address)) {
-					ReserveBridgeAssets.add(_address);
-				}
-			}
-			result = !ReserveBridgeAssets.contains(_address);
-			if (result) ReserveBridgeAssets.add(_address);
-			else ReserveBridgeAssets.remove(_address);
+				ReserveBridgeAssets.add(_address);
+			} else if(requirementsForRemove(reserveBridgeAssetQueue, ReserveBridgeAssets, _address)) {
+				reserveBridgeAssetQueue[_address] = 0;
+				ReserveBridgeAssets.remove(_address);
+			} else return false;
 		} else return false;
 
 		emit ChangeActivated(_managing, _address, result);
