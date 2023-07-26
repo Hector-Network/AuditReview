@@ -35,16 +35,18 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		uint256 bridgeFee;
 	}
 
+	enum MANAGING {
+		RESERVE_BRIDGES,
+		RESERVE_BRIDGE_ASSETS
+	}
+
 	// State variables
 	uint256 public countDest; // Count of the destination wallets
 	uint256 public minFeePercentage;
 	address public DAO; // DAO wallet for taking fee
 	string public version;
 
-	enum MANAGING {
-		RESERVE_BRIDGES,
-		RESERVE_BRIDGE_ASSETS
-	}
+
 	uint256 public blocksNeededForQueue;
 	uint256 public constant MINQUEUETIME = 28800; // 8 hours
 
