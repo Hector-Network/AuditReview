@@ -5,7 +5,7 @@ import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol';
-import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import '@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
@@ -23,7 +23,7 @@ error INVALID_MODERATOR();
  */
 contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	using SafeERC20Upgradeable for IERC20Upgradeable;
-	using EnumerableSet for EnumerableSet.AddressSet;
+	using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
 	bytes32 public constant MODERATOR_ROLE = keccak256("MODERATOR_ROLE");
 	// Struct Asset Info
@@ -48,8 +48,8 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	uint256 public blocksNeededForQueue;
 	uint256 public constant MINQUEUETIME = 28800; // 8 hours
 
-	EnumerableSet.AddressSet private ReserveBridges;
-	EnumerableSet.AddressSet private ReserveBridgeAssets;
+	EnumerableSetUpgradeable.AddressSet private ReserveBridges;
+	EnumerableSetUpgradeable.AddressSet private ReserveBridgeAssets;
 
 	mapping(address => uint) public reserveBridgeQueue; // Delays changes to mapping.
 
@@ -89,13 +89,14 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		address _dao
 	) external initializer {
 		if (_CountDest == 0 || _dao == address(0)) revert INVALID_PARAM();
-		if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
+		// if (_blocksNeededForQueue == 0 || _blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
 		CountDest = _CountDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
 		minFeePercentage = 1;
 		DAO = _dao;
 		__Pausable_init();
+		__AccessControl_init();
  		_setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 		_setupRole(MODERATOR_ROLE, msg.sender);
 	}
@@ -427,7 +428,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
      */
 	function requirements(
 		mapping(address => uint) storage queue_,
-		EnumerableSet.AddressSet storage status_,
+		EnumerableSetUpgradeable.AddressSet storage status_,
 		address _address
 	) internal view returns (bool) {
 		if (!status_.contains(_address)) {
