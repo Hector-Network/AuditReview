@@ -47,8 +47,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable, PausableUpgradeable {
 	string public version;
 
 	uint256 public blocksNeededForQueue;
-	// uint256 public constant MINQUEUETIME = 28800; // 8 hours
-	uint256 public constant MINQUEUETIME = 5; // 8 hours
+	uint256 public constant MINQUEUETIME = 28800; // 8 hours
 
 	EnumerableSetUpgradeable.AddressSet private ReserveBridges;
 	EnumerableSetUpgradeable.AddressSet private ReserveBridgeAssets;
