@@ -13,7 +13,7 @@ async function main() {
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
 	// const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
-	const SPLITTER_ADDRESS = "0x9F9b48704B965bB889A988f2A638B5B526544380";
+	const SPLITTER_ADDRESS = "0xd85F867DC380F9B64177775CC2A7d716ee7e4a31";
 
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 

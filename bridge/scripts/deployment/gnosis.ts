@@ -30,7 +30,7 @@ async function main() {
 
 	const hecBridgeSplitterContract = await hre.upgrades.deployProxy(
 		hecBridgeSplitterFactory,
-		[_countDest, 0],
+		[_countDest, 0, DAO],
 		{
 			gas: gas,
 			initializer: "initialize",
@@ -42,8 +42,7 @@ async function main() {
 	// Set Parameter
 	console.log("Setting parameters...");
 	await hecBridgeSplitterContract.connect(deployer).setMinFeePercentage(feePercentage);
-	await waitSeconds(3);
-	await hecBridgeSplitterContract.connect(deployer).setDAO(DAO);
+
 	await waitSeconds(3);
 	await hecBridgeSplitterContract.connect(deployer).setVersion(version);
 	await waitSeconds(3);
