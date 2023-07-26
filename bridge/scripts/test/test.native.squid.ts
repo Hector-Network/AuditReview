@@ -3,7 +3,7 @@ const hre = require('hardhat');
 const { ethers } = require('hardhat');
 const abi = require('../../artifacts/contracts/HecBridgeSplitter.sol/HecBridgeSplitter.json');
 const erc20Abi = require('../../artifacts/@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol/IERC20Upgradeable.json');
-const tempStepData = require('./dataForNativeTokenTestCase.json');
+const tempStepData = require('./dataOneFtmTestCaseForSquid.json');
 
 
 require('dotenv').config();
@@ -14,8 +14,8 @@ async function main() {
 	console.log('Testing account:', deployer.address);
 	console.log('Account balance:', (await deployer.getBalance()).toString());
 	// const SPLITTER_ADDRESS = "0x5357277562d30E29658931Af9A88adA23EB5ecB1";
-	const SPLITTER_ADDRESS = "0x9F9b48704B965bB889A988f2A638B5B526544380";
-	
+	const SPLITTER_ADDRESS = "0xd85F867DC380F9B64177775CC2A7d716ee7e4a31";
+
 	const HecBridgeSplitterAddress = SPLITTER_ADDRESS;
 
 	const testHecBridgeSplitterContract = new ethers.Contract(
@@ -41,12 +41,12 @@ async function main() {
 		callData: tempStepData.transactionRequest.data,
 		sendingAmount: tempStepData.params.fromAmount, // This is calculated amount except fee for using Bridge 
 		totalAmount: BigNumber.from(tempStepData.params.fromAmount)
-						.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
-						.toString(), // Mock Total Amount
+			.add(BigNumber.from(tempStepData.params.fromAmount).div(10))
+			.toString(), // Mock Total Amount
 		feeAmount: BigNumber.from(tempStepData.params.fromAmount).div(10).toString(),
 		bridgeFee: BigNumber.from(tempStepData.transactionRequest.value)
-						.sub(BigNumber.from(tempStepData.params.fromAmount))
-						.toString()
+			.sub(BigNumber.from(tempStepData.params.fromAmount))
+			.toString()
 	};
 
 	// Sending Asset Id
@@ -129,7 +129,7 @@ async function main() {
 
 	console.log({
 		value: BigNumber.from(tempStepData.transactionRequest.value)
-				.add(BigNumber.from(tempStepData.params.fromAmount).div(10)).toString()
+			.add(BigNumber.from(tempStepData.params.fromAmount).div(10)).toString()
 	})
 
 	try {
@@ -148,7 +148,7 @@ async function main() {
 		console.log(e);
 	}
 
-	
+
 }
 
 main().catch((error) => {

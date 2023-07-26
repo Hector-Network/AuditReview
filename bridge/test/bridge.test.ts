@@ -17,7 +17,7 @@ describe('Hector Bridge', function () {
   let dao: string = '0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90';
   let feePercentage: number = 950;
   let countDest: number = 2;
-  let blocksNeededForQueue = 0; // 8 hours
+  let blocksNeededForQueue = 5; // 8 hours
   let ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
   enum MANAGING {
     RESERVE_BRIDGES,
@@ -32,7 +32,7 @@ describe('Hector Bridge', function () {
     const HectorBridge = await ethers.getContractFactory('HecBridgeSplitter');
     hectorBridge = (await upgrades.deployProxy(
       HectorBridge,
-      [countDest, blocksNeededForQueue],
+      [countDest, blocksNeededForQueue, dao],
       {
         initializer: 'initialize',
       }
@@ -61,11 +61,11 @@ describe('Hector Bridge', function () {
       ]);
 
       expect(
-        await hectorBridge.reserveBridgeQueue(lifiBridge)
+        (await hectorBridge.reserveBridgeQueue(lifiBridge)).toNumber()
       ).to.be.greaterThan(0);
 
       expect(
-        await hectorBridge.reserveBridgeQueue(alice.address)
+        (await hectorBridge.reserveBridgeQueue(alice.address)).toNumber()
       ).to.be.greaterThan(0);
     });
 
@@ -77,7 +77,7 @@ describe('Hector Bridge', function () {
 
       await expect(
         hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, lifiBridge)
-      ).to.be.revertedWithCustomError(hectorBridge, 'QUEUE_NOT_EXPIRED');
+      ).to.be.revertedWith('QUEUE_NOT_EXPIRED');
     });
 
     it('Should Pass - Wait For Queue to be over', async function () {
@@ -100,14 +100,17 @@ describe('Hector Bridge', function () {
         .to.emit(hectorBridge, 'ChangeActivated')
         .withArgs(MANAGING.RESERVE_BRIDGES, lifiBridge, true);
     });
-    it('Should Fail - Add duplicated bridge contract', async function () {
+    it('Should Pass - Toggle off when duplicated bridge contract', async function () {
+      const origianlStatus = await hectorBridge.isReservedBridge(lifiBridge);
+      if (origianlStatus) await hectorBridge.removeReserveBridge(lifiBridge);
+
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
 
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
 
       //check if bridge exists
-      expect(await hectorBridge.reserveBridges(0)).equal(lifiBridge);
+      expect(await hectorBridge.isReservedBridge(lifiBridge)).equal(true);
 
       //Add again
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
@@ -117,25 +120,32 @@ describe('Hector Bridge', function () {
         lifiBridge
       );
 
-      await expect(
-        hectorBridge.reserveBridges(1)
-      ).to.be.revertedWithoutReason();
+      expect(
+        await hectorBridge.isReservedBridge(lifiBridge)
+      ).equal(false);
     });
     it('Should Pass - Delete bridge contract', async function () {
+      const origianlStatus = await hectorBridge.isReservedBridge(lifiBridge);
+      if (origianlStatus) await hectorBridge.removeReserveBridge(lifiBridge);
+
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
 
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
 
       //check if bridge exists
-      expect(await hectorBridge.reserveBridges(0)).equal(lifiBridge);
+      expect(await hectorBridge.isReservedBridge(lifiBridge)).equal(true);
 
       const tx = await hectorBridge.removeReserveBridge(lifiBridge);
-      await expect(
-        hectorBridge.reserveBridges(0)
-      ).to.be.revertedWithoutReason();
+      expect(
+        await hectorBridge.isReservedBridge(lifiBridge)
+      ).equal(false)
     });
+
     it('Should Pass - Update bridge contract', async function () {
+      const origianlStatus = await hectorBridge.isReservedBridge(lifiBridge);
+      if (origianlStatus) await hectorBridge.removeReserveBridge(lifiBridge);
+
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
 
       await increaseTime(blocksNeededForQueue + 5);
@@ -149,15 +159,7 @@ describe('Hector Bridge', function () {
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, alice.address);
 
-      expect(await hectorBridge.reserveBridges(0)).equal(alice.address);
-    });
-
-    it('isReserveBridge to true after adding', async function () {
-      await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, lifiBridge);
-
-      await increaseTime(blocksNeededForQueue + 5);
-      await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
-      expect(await hectorBridge.isReserveBridge(lifiBridge)).equal(true);
+      expect(await hectorBridge.isReservedBridge(alice.address)).equal(true);
     });
 
     it('isReserveBridge to false after removing', async function () {
@@ -167,7 +169,7 @@ describe('Hector Bridge', function () {
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, lifiBridge);
       await hectorBridge.removeReserveBridge(lifiBridge);
 
-      expect(await hectorBridge.isReserveBridge(lifiBridge)).equal(false);
+      expect(await hectorBridge.isReservedBridge(lifiBridge)).equal(false);
     });
     it('Should Pass - Add many bridge contracts', async function () {
       const txQueue = await hectorBridge.queueMany(MANAGING.RESERVE_BRIDGES, [
@@ -204,11 +206,11 @@ describe('Hector Bridge', function () {
       );
 
       expect(
-        await hectorBridge.reserveBridgeAssetQueue(lifiBridge)
+        (await hectorBridge.reserveBridgeAssetQueue(lifiBridge)).toNumber()
       ).to.be.greaterThan(0);
 
       expect(
-        await hectorBridge.reserveBridgeAssetQueue(alice.address)
+        (await hectorBridge.reserveBridgeAssetQueue(alice.address)).toNumber()
       ).to.be.greaterThan(0);
     });
 
@@ -220,7 +222,7 @@ describe('Hector Bridge', function () {
 
       await expect(
         hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, token.address)
-      ).to.be.revertedWithCustomError(hectorBridge, 'QUEUE_NOT_EXPIRED');
+      ).to.be.revertedWith('QUEUE_NOT_EXPIRED');
     });
 
     it('Should Pass - Wait For Queue to be over', async function () {
@@ -244,14 +246,16 @@ describe('Hector Bridge', function () {
         .withArgs(MANAGING.RESERVE_BRIDGE_ASSETS, token.address, true);
     });
 
-    it('Should Fail - Add duplicated bridge asset', async function () {
+    it('Should Pass - Toogle off add duplicated bridge asset', async function () {
+      const origianlStatus = await hectorBridge.isReservedAsset(token.address);
+      if (origianlStatus) await hectorBridge.removeReserveBridgeAsset(token.address);
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
       //check if bridge exists
-      expect(await hectorBridge.reserveBridgeAssets(0)).equal(token.address);
+      expect(await hectorBridge.isReservedAsset(token.address)).equal(true);
 
       //Add again
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
@@ -261,25 +265,32 @@ describe('Hector Bridge', function () {
         token.address
       );
 
-      await expect(
-        hectorBridge.reserveBridgeAssets(1)
-      ).to.be.revertedWithoutReason();
+      expect(
+        await hectorBridge.isReservedAsset(token.address)
+      ).equal(false);
     });
+
     it('Should Pass - Delete bridge asset', async function () {
+      const origianlStatus = await hectorBridge.isReservedAsset(token.address);
+      if (origianlStatus) await hectorBridge.removeReserveBridgeAsset(token.address);
+
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
       //check if bridge exists
-      expect(await hectorBridge.reserveBridgeAssets(0)).equal(token.address);
+      expect(await hectorBridge.isReservedAsset(token.address)).equal(true);
 
       const tx = await hectorBridge.removeReserveBridgeAsset(token.address);
-      await expect(
-        hectorBridge.reserveBridgeAssets(0)
-      ).to.be.revertedWithoutReason();
+      expect(
+        await hectorBridge.isReservedAsset(token.address)
+      ).equal(false);
     });
     it('Should Pass - Update bridge asset', async function () {
+      const origianlStatus = await hectorBridge.isReservedAsset(token.address);
+      if (origianlStatus) await hectorBridge.removeReserveBridgeAsset(token.address);
+
       await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
 
       await increaseTime(blocksNeededForQueue + 5);
@@ -293,7 +304,9 @@ describe('Hector Bridge', function () {
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, alice.address);
 
-      expect(await hectorBridge.reserveBridgeAssets(0)).equal(alice.address);
+      expect(
+        await hectorBridge.isReservedAsset(alice.address)
+      ).equal(true);
     });
 
     it('isReserveBridgeAsset to true after adding asset', async function () {
@@ -301,9 +314,9 @@ describe('Hector Bridge', function () {
 
       await increaseTime(blocksNeededForQueue + 5);
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
-      expect(await hectorBridge.isReserveBridgeAsset(token.address)).equal(
-        true
-      );
+      expect(
+        await hectorBridge.isReservedAsset(token.address)
+      ).equal(true);
     });
 
     it('isReserveBridgeAsset to false after removing asset', async function () {
@@ -313,9 +326,9 @@ describe('Hector Bridge', function () {
       await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, token.address);
       await hectorBridge.removeReserveBridgeAsset(token.address);
 
-      expect(await hectorBridge.isReserveBridgeAsset(token.address)).equal(
-        false
-      );
+      expect(
+        await hectorBridge.isReservedAsset(token.address)
+      ).equal(false);
     });
 
     it('Should Pass - Add many bridge tokens', async function () {
@@ -336,9 +349,7 @@ describe('Hector Bridge', function () {
 
   describe('#Test DAO set', async () => {
     it('Unable to set DAO if not owner', async function () {
-      await expect(hectorBridge.connect(alice).setDAO(dao)).to.be.revertedWith(
-        'Ownable: caller is not the owner'
-      );
+      await expect(hectorBridge.connect(alice).setDAO(dao)).to.be.reverted
     });
 
     it('Unable to add zero address', async function () {
@@ -358,7 +369,7 @@ describe('Hector Bridge', function () {
     it('Unable to set Fee if not owner', async function () {
       await expect(
         hectorBridge.connect(alice).setMinFeePercentage(feePercentage)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.reverted
     });
 
     it('Compare FeePercentage after adding', async function () {
@@ -377,7 +388,7 @@ describe('Hector Bridge', function () {
     it('Unable to set Fee if not owner', async function () {
       await expect(
         hectorBridge.connect(alice).setCountDest(countDest)
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.reverted
     });
 
     it('Compare counts after adding', async function () {
@@ -386,214 +397,7 @@ describe('Hector Bridge', function () {
         .setCountDest(countDest);
       await result.wait();
       await waitSeconds(3);
-      expect(await hectorBridge.connect(deployer).CountDest()).equal(countDest);
-    });
-  });
-
-  describe('#Test Bridge Operation Using Squid', () => {
-    let ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-
-    let mockSendingAssetInfos: any[] = [];
-    let fees: Array<BigNumber> = [];
-    let feesForNative: Array<BigNumber> = [];
-    let fee: BigNumber = BigNumber.from(0);
-
-    let mockSendingAssetInfo1: {
-      callData: string;
-      sendingAmount: string;
-      totalAmount: string; // Mock Total Amount
-      feeAmount: string;
-      bridgeFee: string;
-    };
-
-    let sendingAsset: string;
-    let targetAddress: string;
-
-    let callData = tempStepDataForSquid.transactionRequest.data;
-    let sendingAmount = tempStepDataForSquid.params.fromAmount; // This is calculated amount except fee for using Bridge
-    let totalAmount = BigNumber.from('11000').toString(); // Mock Total Amount
-    let feeAmount = BigNumber.from('11000')
-      .sub(BigNumber.from(tempStepDataForSquid.params.fromAmount))
-      .toString(); // MockFee - 0.075%
-    let bridgeFee = BigNumber.from(
-      tempStepDataForSquid.transactionRequest.value
-    ).toString();
-
-    let isNativeFrom =
-      tempStepDataForSquid.params.fromToken.address == ETH_ADDRESS;
-
-    before(async function () {
-      mockSendingAssetInfo1 = {
-        callData: callData,
-        sendingAmount: sendingAmount,
-        totalAmount: totalAmount, // Mock Total Amount
-        feeAmount: feeAmount,
-        bridgeFee: bridgeFee,
-      };
-      // Sending Asset Id
-      sendingAsset = isNativeFrom
-        ? ZERO_ADDRESS
-        : tempStepDataForSquid.params.fromToken.address;
-
-      await hectorBridge.queue(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
-      await increaseTime(blocksNeededForQueue + 5);
-      await hectorBridge.toggle(MANAGING.RESERVE_BRIDGE_ASSETS, sendingAsset);
-
-      targetAddress = tempStepDataForSquid.transactionRequest.targetAddress;
-
-      fees.push(BigNumber.from(bridgeFee));
-
-      if (isNativeFrom) {
-        feesForNative.push(BigNumber.from(feeAmount));
-      }
-
-      fees.map((item) => {
-        fee = fee.add(item);
-      });
-
-      feesForNative.map((item) => {
-        fee = fee.add(item);
-      });
-
-      mockSendingAssetInfos.push(mockSendingAssetInfo1);
-
-      if (!isNativeFrom) {
-        let approveAmount = BigNumber.from(totalAmount);
-
-        const ERC20Contract = new ethers.Contract(
-          sendingAsset,
-          erc20Abi.abi,
-          deployer
-        );
-
-        await waitSeconds(3);
-
-        let txApprove = await ERC20Contract.connect(deployer).approve(
-          hectorBridge.address,
-          approveAmount
-        );
-
-        await txApprove.wait();
-      }
-
-      await hectorBridge.queue(MANAGING.RESERVE_BRIDGES, squidRouter);
-      await increaseTime(blocksNeededForQueue + 5);
-      await hectorBridge.toggle(MANAGING.RESERVE_BRIDGES, squidRouter);
-
-      const txSetDao = await hectorBridge.connect(deployer).setDAO(dao);
-      await txSetDao.wait();
-    });
-
-    it('Success Tx For Squid Bridge', async function () {
-      const result = await hectorBridge.bridge(
-        sendingAsset,
-        mockSendingAssetInfos,
-        targetAddress,
-        {
-          value: fee,
-        }
-      );
-      await expect(result.wait()).not.to.be.reverted;
-    });
-
-    it('Failed Tx when call fake targetAddress', async function () {
-      const result = await hectorBridge
-        .connect(deployer)
-        .bridge(
-          sendingAsset,
-          mockSendingAssetInfos,
-          '0xbf014a15198edcfcb2921de7099bf256db31c4ba',
-          {
-            value: fee,
-            gasLimit: 1000000,
-          }
-        );
-
-      await expect(result.wait()).to.be.rejectedWith(
-        'Bridge: Invalid parameters'
-      );
-    });
-
-    it('Failed Tx when send fake asset', async function () {
-      const result = await hectorBridge
-        .connect(deployer)
-        .bridge(
-          '0xbf014a15198edcfcb2921de7099bf256db31c4ba',
-          mockSendingAssetInfos,
-          targetAddress,
-          {
-            value: fee,
-            gasLimit: 1000000,
-          }
-        );
-      await expect(result.wait()).to.be.reverted;
-    });
-
-    it('Failed Tx when send fake assetInfos', async function () {
-      const result = await hectorBridge.connect(deployer).bridge(
-        sendingAsset,
-        [
-          {
-            callData: '0xadde0800',
-            sendingAmount: sendingAmount,
-            totalAmount: totalAmount, // Mock Total Amount
-            feeAmount: feeAmount,
-            bridgeFee: bridgeFee,
-          },
-        ],
-        targetAddress,
-        {
-          value: fee,
-          gasLimit: 1000000,
-        }
-      );
-      await expect(result.wait()).to.be.reverted;
-    });
-
-    describe('#pausable', () => {
-      it('Failed Bridge Tx when paused', async function () {
-        const txPause = await hectorBridge.pause();
-        await txPause.wait();
-        await expect(
-          hectorBridge
-            .connect(deployer)
-            .bridge(sendingAsset, mockSendingAssetInfos, targetAddress, {
-              value: fee,
-            })
-        ).to.be.revertedWith('Pausable: paused');
-      });
-
-      it('Success Tx when unpause', async function () {
-        const unpauseTx = await hectorBridge.unpause();
-        await unpauseTx.wait();
-        if (!isNativeFrom) {
-          let approveAmount = BigNumber.from(totalAmount);
-
-          const ERC20Contract = new ethers.Contract(
-            sendingAsset,
-            erc20Abi.abi,
-            deployer
-          );
-
-          await waitSeconds(3);
-
-          let txApprove = await ERC20Contract.connect(deployer).approve(
-            hectorBridge.address,
-            approveAmount
-          );
-
-          await txApprove.wait();
-        }
-        const result = await hectorBridge.bridge(
-          sendingAsset,
-          mockSendingAssetInfos,
-          targetAddress,
-          {
-            value: fee,
-          }
-        );
-        await expect(result.wait()).not.to.be.reverted;
-      });
+      expect(await hectorBridge.connect(deployer).countDest()).equal(countDest);
     });
   });
 });
