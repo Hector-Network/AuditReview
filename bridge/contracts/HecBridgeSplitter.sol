@@ -519,11 +519,4 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		emit ChangeQueued(_managing, _address);
 		return true;
 	}
-
-	function deleteLastAddress(address[] storage addressList) internal {
-		require(addressList.length > 0, 'Array is empty');
-		uint lastIndex = addressList.length - 1;
-		delete addressList[lastIndex];
-		addressList.pop();
-	}
 }
