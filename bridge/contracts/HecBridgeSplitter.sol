@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.7;
+pragma solidity 0.8.7;
 
 import '@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol';
@@ -36,7 +36,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	}
 
 	// State variables
-	uint256 public CountDest; // Count of the destination wallets
+	uint256 public countDest; // Count of the destination wallets
 	uint256 public minFeePercentage;
 	address public DAO; // DAO wallet for taking fee
 	string public version;
@@ -56,15 +56,13 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	mapping(address => uint) public reserveBridgeAssetQueue; // Delays changes to mapping.
 
 	// Events
-	event SetCountDest(uint256 oldCountDest, uint256 newCountDest, address indexed user);
-	event SetDAO(address oldDAO, address newDAO, address indexed user);
-	event MakeCallData(bool success, bytes callData, address indexed user);
+	event SetCountDest(uint256 oldCountDest, uint256 newCountDest);
+	event SetDAO(address oldDAO, address newDAO);
+	event MakeCallData(bytes callData, address indexed user);
 	event HectorBridge(address indexed user, SendingAssetInfo[] sendingAssetInfos);
 	event SetVersion(string _version);
 	event SetMinFeePercentage(uint256 feePercentage);
 	event AddCallAddress(address _callAddress, address _owner);
-	event RemoveCallAddress(address _callAddress, address _owner);
-	event ApproveToken(address _srcToken, address _callAddress, uint256 _amount);
 	event SetModerator(address _moderator, bool _approved);
 	event ChangeQueued(MANAGING indexed managing, address queued);
 	event ChangeActivated(MANAGING indexed managing, address activated, bool result);
@@ -84,14 +82,14 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	 * @dev sets initials
 	 */
 	function initialize(
-		uint256 _CountDest,
+		uint256 _countDest,
 		uint256 _blocksNeededForQueue,
 		address _dao
 	) external initializer {
-		if (_CountDest == 0 || _dao == address(0)) revert INVALID_PARAM();
+		if (_countDest == 0 || _dao == address(0)) revert INVALID_PARAM();
 		// if (_blocksNeededForQueue < MINQUEUETIME) revert INVALID_PARAM();
 
-		CountDest = _CountDest;
+		countDest = _countDest;
 		blocksNeededForQueue = _blocksNeededForQueue;
 		minFeePercentage = 1;
 		DAO = _dao;
@@ -139,7 +137,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	) external payable whenNotPaused {
 		require(
 			sendingAssetInfos.length > 0 &&
-				sendingAssetInfos.length <= CountDest &&
+				sendingAssetInfos.length <= countDest &&
 				ReserveBridges.contains(callTargetAddress) &&
 				ReserveBridgeAssets.contains(sendingAsset) &&
 				callTargetAddress != address(0),
@@ -158,11 +156,11 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 
 			if (fee > 0) {
 				(success, result) = payable(callTargetAddress).call{value: fee}(callData);
-				emit MakeCallData(success, callData, msg.sender);
+				emit MakeCallData(callData, msg.sender);
 				if (!success) revert(_getRevertMsg(result));
 			} else {
 				(success, result) = payable(callTargetAddress).call(callData);
-				emit MakeCallData(success, callData, msg.sender);
+				emit MakeCallData(callData, msg.sender);
 				if (!success) revert(_getRevertMsg(result));
 			}
 		}
@@ -182,7 +180,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 	) external payable whenNotPaused {
 		require(
 			sendingAssetInfos.length > 0 &&
-				sendingAssetInfos.length <= CountDest &&
+				sendingAssetInfos.length <= countDest &&
 				ReserveBridges.contains(callTargetAddress) &&
 				callTargetAddress != address(0),
 			'Bridge: Invalid parameters'
@@ -198,7 +196,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 			(bool success, bytes memory result) = payable(callTargetAddress).call{value: sendValue}(
 				callData
 			);
-			emit MakeCallData(success, callData, msg.sender);
+			emit MakeCallData(callData, msg.sender);
 			if (!success) revert(_getRevertMsg(result));
 		}
 		emit HectorBridge(msg.sender, sendingAssetInfos);
@@ -272,9 +270,9 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
      */
 	function setCountDest(uint256 _countDest) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		if (_countDest == 0) revert INVALID_PARAM();
-		uint256 oldCountDest = CountDest;
-		CountDest = _countDest;
-		emit SetCountDest(oldCountDest, _countDest, msg.sender);
+		uint256 oldCountDest = countDest;
+		countDest = _countDest;
+		emit SetCountDest(oldCountDest, _countDest);
 	}
 
 	/**
@@ -286,7 +284,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
 		address oldDAO = DAO;
 
 		DAO = newDAO;
-		emit SetDAO(oldDAO, newDAO, msg.sender);
+		emit SetDAO(oldDAO, newDAO);
 	}
 
 	/**
@@ -294,6 +292,7 @@ contract HecBridgeSplitter is AccessControlUpgradeable , PausableUpgradeable {
         @param _version new version
      */
 	function setVersion(string calldata _version) external onlyRole(DEFAULT_ADMIN_ROLE) {
+		require(bytes(_version).length > 0, "Version cannot be an empty string");
 		version = _version;
 		emit SetVersion(_version);
 	}
