@@ -85,6 +85,24 @@ contract HectorRegistration is
 		emit RemoveBlacklistedWallet(_wallet);
 	}
 
+    /**
+        @notice register wallet
+        @param walletAddress Wallet address
+     */
+    function _registerWallet(address walletAddress) private {    
+
+        if (walletAddress == address(0) ||
+            registeredWallets.contains(walletAddress) ||
+            blacklistedWallets.contains(walletAddress)
+            ) revert INVALID_WALLET();
+
+        registeredWallets.add(walletAddress);
+
+        emit AddRegisteredWallet(
+            walletAddress
+        );        
+    }
+
 
 
     /* ======== POLICY FUNCTIONS ======== */
@@ -128,21 +146,23 @@ contract HectorRegistration is
     /* ======== MODERATOR FUNCTIONS ======== */
 
     /**
-        @notice register wallet
+        @notice register one wallet
         @param walletAddress Wallet address
      */
     function registerWallet(address walletAddress) external onlyRole(MODERATOR_ROLE) {    
+        _registerWallet(walletAddress);
+    }
 
-        if (walletAddress == address(0) ||
-            registeredWallets.contains(walletAddress) ||
-            blacklistedWallets.contains(walletAddress)
-            ) revert INVALID_WALLET();
+    /**
+        @notice register multiple wallets
+        @param _wallets Wallet addresses
+     */
+    function registerWallets(address[] memory _wallets) external onlyRole(MODERATOR_ROLE) {    
+         uint256 length = _wallets.length;
 
-        registeredWallets.add(walletAddress);
-
-        emit AddRegisteredWallet(
-            walletAddress
-        );        
+        for (uint256 i = 0; i < length; i++) {
+            _registerWallet(_wallets[i]);
+        }
     }
 
     /* ======== VIEW FUNCTIONS ======== */
@@ -189,8 +209,5 @@ contract HectorRegistration is
 	function isBlacklistedWallet(address _walletAddress) external view returns (bool) {
 		return blacklistedWallets.contains(_walletAddress);
 	}
-
-    /* ======== USER FUNCTIONS ======== */
-
    
 }

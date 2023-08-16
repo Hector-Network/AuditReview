@@ -15,8 +15,11 @@ describe('Hector Registration', function () {
     testWallet3: SignerWithAddress;
 
   let hectorRegistration: HectorRegistration;
+  let walletAddresses: [];
+  let totalWallets: number;
 
   before(async function () {
+    this.timeout(10000000);
     [
       deployer,
       multisig,
@@ -34,9 +37,34 @@ describe('Hector Registration', function () {
       multisig.address,
       moderator.address
     )) as HectorRegistration;
+
+    //generate 10k wallet addresses to an array
+    // walletAddresses = [];
+    // totalWallets = 10000;
+
+    // for (let i = 0; i < totalWallets; i++) {
+    //   walletAddresses.push(ethers.Wallet.createRandom().address);
+    // }
   });
 
   describe('#Wallet Registration', async () => {
+    // it('Should Pass - Register 10k Wallets (Only Moderator)', async function () {
+    //   const chunkSize = 25;
+    //   const chunks = Math.ceil(totalWallets / chunkSize);
+
+    //   for (let i = 0; i < chunks; i++) {
+    //     let chunkWallets = walletAddresses.slice(
+    //       i * chunkSize,
+    //       (i + 1) * chunkSize
+    //     );
+
+    //     const txQueue = await hectorRegistration.registerWallets(chunkWallets);
+    //     txQueue.wait(10);
+    //   }
+
+    //   const walletCount = await hectorRegistration.getRegisteredWalletsCount();
+    //   expect(walletCount).to.be.equal(totalWallets);
+    // });
     it('Should Pass - Register Wallet (Only Moderator)', async function () {
       const txQueue = await hectorRegistration.registerWallet(
         registeredWallet.address
@@ -52,6 +80,7 @@ describe('Hector Registration', function () {
 
       expect(isAvailable).to.be.true;
     });
+
     it('Should Not Pass - Duplicated Wallet', async function () {
       await expect(
         hectorRegistration.registerWallet(registeredWallet.address)
