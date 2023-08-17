@@ -14,7 +14,7 @@ error INVALID_ADDRESS();
 error INVALID_AMOUNT();
 error INVALID_TIME();
 error INVALID_WALLET();
-error INVALID_MODERATOR();
+error INVALID_BALANCE();
 
 
 contract HectorRegistration is
@@ -31,6 +31,7 @@ contract HectorRegistration is
     Wallet[] public wallets;
     EnumerableSet.AddressSet private registeredWallets;
     EnumerableSet.AddressSet private blacklistedWallets;
+    EnumerableSet.AddressSet private eligibleTokens;
 
     /// @notice user wallet => array of tokens
     mapping(address => Token[]) public tokensInWallet;
@@ -44,14 +45,16 @@ contract HectorRegistration is
     event RemoveBlacklistedWallet(address wallet);
     event SetRegistrationExpirationTime(uint256 oldValue, uint256 newValue);
     event AddRegisteredWallet(address walletAddress);
+    event AddEligibleToken(address token);
 
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address multisigWallet, address moderator) {
+    constructor(address multisigWallet, address moderator, address[] memory _tokens) {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
 
+        _addEligibleTokens(_tokens);
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 		_setupRole(MODERATOR_ROLE, msg.sender);
@@ -59,6 +62,27 @@ contract HectorRegistration is
     }
 
     /* ======== PRIVATE ======== */
+    /**
+        @notice add eligible token
+        @param _token  wallet address
+     */
+    function _addEligibleToken(address _token) private {
+        //check for duplicate
+        if (_token == address(0) || eligibleTokens.contains(_token)) revert INVALID_WALLET();
+
+        eligibleTokens.add(_token);
+
+		emit AddEligibleToken(_token);
+	}
+
+    function _addEligibleTokens(address[] memory _tokens) private {
+        uint256 length = _tokens.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _addEligibleToken(_tokens[i]);
+        }
+	}
+
     /**
         @notice add blacklist wallet 
         @param _wallet  wallet address
@@ -90,17 +114,31 @@ contract HectorRegistration is
         @param walletAddress Wallet address
      */
     function _registerWallet(address walletAddress) private {    
-
         if (walletAddress == address(0) ||
             registeredWallets.contains(walletAddress) ||
             blacklistedWallets.contains(walletAddress)
             ) revert INVALID_WALLET();
+
+        uint256 balanceOfWallet = _getWalletBalance(walletAddress);
+
+        if (balanceOfWallet == 0) revert INVALID_BALANCE();
 
         registeredWallets.add(walletAddress);
 
         emit AddRegisteredWallet(
             walletAddress
         );        
+    }
+
+    function _getWalletBalance(address walletAddress) private view returns (uint256) {  
+        uint256 length = eligibleTokens.length();
+        uint256 balanceOfWallet = 0;
+
+        for (uint256 i = 0; i < length; i++) {
+            address tokenAddress = eligibleTokens.at(i);
+            balanceOfWallet += IERC20(tokenAddress).balanceOf(walletAddress);
+        }
+        return balanceOfWallet;
     }
 
 
@@ -117,6 +155,14 @@ contract HectorRegistration is
 		if (_approved) grantRole(MODERATOR_ROLE, _moderator);
 		else revokeRole(MODERATOR_ROLE, _moderator);
 		emit SetModerator(_moderator, _approved);
+	}
+
+    /**
+        @notice add eligible tokens
+        @param _tokens  token address
+     */
+    function addEligibleTokens(address[] memory _tokens) external onlyRole(MODERATOR_ROLE) {
+        _addEligibleTokens(_tokens);
 	}
 
     /**
@@ -149,7 +195,7 @@ contract HectorRegistration is
         @notice register one wallet
         @param walletAddress Wallet address
      */
-    function registerWallet(address walletAddress) external onlyRole(MODERATOR_ROLE) {    
+    function registerWallet(address walletAddress) external {         
         _registerWallet(walletAddress);
     }
 
@@ -166,6 +212,11 @@ contract HectorRegistration is
     }
 
     /* ======== VIEW FUNCTIONS ======== */
+
+    /// @notice Returns the length of eligible tokens
+	function getEligibleTokensCount() external view returns (uint256) {
+		return eligibleTokens.length();
+	}
 
     /// @notice Returns the length of registered wallets
 	function getRegisteredWalletsCount() external view returns (uint256) {
@@ -186,9 +237,35 @@ contract HectorRegistration is
         return tokensInWallet[_walletAddress];
     }
 
+     /// @notice Returns all eligible tokens
+    function getAllTokens() external view returns (address[] memory) {
+        return eligibleTokens.values();
+    }
+
      /// @notice Returns all wallet addresses
     function getAllWallets() external view returns (address[] memory) {
         return registeredWallets.values();
+    }
+
+     /// @notice Returns all wallet addresses from a range
+    function getWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
+        uint256 length = registeredWallets.length();
+        if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
+
+        address[] memory _wallets = new address[](toIndex - fromIndex);
+        uint256 index = 0;
+
+        for (uint256 i = fromIndex; i < toIndex; i++) {
+            _wallets[index] = registeredWallets.at(i);
+            index++;
+        }
+
+        return _wallets;
+    }
+
+      /// @notice Returns wallet at index
+    function getAllWalletAtIndex(uint16 index) external view returns (address) {
+        return registeredWallets.at(index);
     }
 
     /// @notice Returns the length of registered wallets
@@ -209,5 +286,10 @@ contract HectorRegistration is
 	function isBlacklistedWallet(address _walletAddress) external view returns (bool) {
 		return blacklistedWallets.contains(_walletAddress);
 	}
+
+     /// @notice Returns balance of eligible tokens from user's wallet
+    function getBalancesFromWallet(address _walletAddress) external view returns (uint256) {
+        return _getWalletBalance(_walletAddress);
+    }
    
 }
