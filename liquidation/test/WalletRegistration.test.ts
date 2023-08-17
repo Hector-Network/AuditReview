@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { BigNumber, utils } from 'ethers';
 import { increaseTime, getTimeStamp, waitSeconds } from '../../helper';
-import { HectorRegistration, RewardToken } from '../../types';
+import { HectorRegistration, RewardToken, HectorFNFT } from '../../types';
 
 describe('Hector Registration', function () {
   let deployer: SignerWithAddress;
@@ -18,6 +18,8 @@ describe('Hector Registration', function () {
     wsHec: RewardToken,
     sHec: RewardToken,
     unregisteredToken: RewardToken;
+
+  let FNFT: HectorFNFT;
 
   let hectorRegistration: HectorRegistration;
   let walletAddresses: [];
@@ -41,6 +43,9 @@ describe('Hector Registration', function () {
     sHec = (await TokenFactory.deploy()) as RewardToken;
     unregisteredToken = (await TokenFactory.deploy()) as RewardToken;
 
+    const FNFTFactory = await ethers.getContractFactory('HectorFNFT');
+    FNFT = (await FNFTFactory.deploy()) as HectorFNFT;
+
     let eligibleTokens = [hecToken.address, wsHec.address, sHec.address];
 
     const HectorRegistrationFactory = await ethers.getContractFactory(
@@ -49,7 +54,8 @@ describe('Hector Registration', function () {
     hectorRegistration = (await HectorRegistrationFactory.deploy(
       multisig.address,
       moderator.address,
-      eligibleTokens
+      eligibleTokens,
+      FNFT.address
     )) as HectorRegistration;
 
     //generate 20 wallet addresses to an array
@@ -96,17 +102,9 @@ describe('Hector Registration', function () {
         hectorRegistration.registerWallet(registeredWallet.address)
       ).to.be.revertedWith('INVALID_BALANCE');
     });
-    it('Should Pass - Register Wallet', async function () {
-      const registeredWalletBalance = await hecToken.balanceOf(
-        registeredWallet.address
-      );
-      if (registeredWalletBalance.eq(0))
-        await hecToken.mint(
-          registeredWallet.address,
-          utils.parseEther('1000000')
-        );
-
-      const txQueue = await hectorRegistration.registerWallet(
+    it('Should Pass - Register Wallet with FNFT', async function () {
+      await FNFT.mint(registeredWallet.address);
+      let txQueue = await hectorRegistration.registerWallet(
         registeredWallet.address
       );
 
@@ -116,6 +114,27 @@ describe('Hector Registration', function () {
 
       const isAvailable = await hectorRegistration.isRegisteredWallet(
         registeredWallet.address
+      );
+
+      expect(isAvailable).to.be.true;
+    });
+    it('Should Pass - Register Wallet', async function () {
+      const registeredWalletBalance = await hecToken.balanceOf(
+        testWallet3.address
+      );
+      if (registeredWalletBalance.eq(0))
+        await hecToken.mint(testWallet3.address, utils.parseEther('1000000'));
+
+      const txQueue = await hectorRegistration.registerWallet(
+        testWallet3.address
+      );
+
+      await expect(txQueue)
+        .to.emit(hectorRegistration, 'AddRegisteredWallet')
+        .withArgs(testWallet3.address);
+
+      const isAvailable = await hectorRegistration.isRegisteredWallet(
+        testWallet3.address
       );
 
       expect(isAvailable).to.be.true;

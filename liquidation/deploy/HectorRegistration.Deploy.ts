@@ -18,28 +18,16 @@ const deployHectorRegistration: DeployFunction = async (
   /// Token Address: FTM Testnet
   const hectorTokenAddress = '0x55639b1833Ddc160c18cA60f5d0eC9286201f525';
   const torTokenAddress = '0xCe5b1b90a1E1527E8B82a9434266b2d6B72cc70b';
-
-  /// Token Address: BSC Testnet
-  // const hectorTokenAddress = '0x7400E9838BAD5cfFe1C4dc0236Fce2E725C73d42';
-  // const torTokenAddress = '0x205F190776C8d466727bD0Cac6D1B564DC3C8Ea9';
+  const fnftAddress = '0xaCeEb6d36a1777746c5c6633C752E688cb6d94A9';
 
   const eligibleTokens = [hectorTokenAddress, torTokenAddress];
-  const args = [multisig, moderator, eligibleTokens];
+  const args = [multisig, moderator, eligibleTokens, fnftAddress];
 
   const hectorRegistration = await deploy('HectorRegistration', {
     from: deployer.address,
     args: args,
     log: true,
   });
-
-  // const HectorRegistrationFactory = await ethers.getContractFactory(
-  //   'HectorRegistration'
-  // );
-  // const hectorRegistration = (await HectorRegistrationFactory.deploy(
-  //   multisig,
-  //   moderator,
-  //   eligibleTokens
-  // )) as HectorRegistration;
 
   if (hre.network.name !== 'localhost' && hre.network.name !== 'hardhat') {
     await waitSeconds(10);

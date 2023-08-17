@@ -6,6 +6,7 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import '@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol';
 
 import {IRegistrationWallet} from '../interfaces/IRegistrationWallet.sol';
 
@@ -39,6 +40,8 @@ contract HectorRegistration is
     /// @notice setup moderator role
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
+    IERC721Enumerable public fnft; // FNFT contract
+
     /* ======== EVENTS ======== */
     event SetModerator(address _moderator, bool _approved);
     event AddBlacklistedWallet(address wallet);
@@ -50,9 +53,12 @@ contract HectorRegistration is
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address multisigWallet, address moderator, address[] memory _tokens) {
+    constructor(address multisigWallet, address moderator, address[] memory _tokens, address _fnft) {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
+        if (_fnft == address(0)) revert INVALID_ADDRESS();
+
+        fnft = IERC721Enumerable(_fnft);
 
         _addEligibleTokens(_tokens);
         _transferOwnership(multisigWallet);
@@ -138,10 +144,11 @@ contract HectorRegistration is
             address tokenAddress = eligibleTokens.at(i);
             balanceOfWallet += IERC20(tokenAddress).balanceOf(walletAddress);
         }
-        return balanceOfWallet;
+
+        uint256 FNFTbalance = fnft.balanceOf(walletAddress);
+
+        return balanceOfWallet + FNFTbalance;
     }
-
-
 
     /* ======== POLICY FUNCTIONS ======== */
 
@@ -291,5 +298,5 @@ contract HectorRegistration is
     function getBalancesFromWallet(address _walletAddress) external view returns (uint256) {
         return _getWalletBalance(_walletAddress);
     }
-   
+
 }
