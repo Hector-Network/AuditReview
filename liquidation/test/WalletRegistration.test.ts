@@ -46,6 +46,10 @@ describe('Hector Registration', function () {
     const FNFTFactory = await ethers.getContractFactory('HectorFNFT');
     FNFT = (await FNFTFactory.deploy()) as HectorFNFT;
 
+    //Check fnft balance
+    //const fnftBalance = await FNFT.balanceOf(deployer.address);
+    //console.log('FNFT Balance: ', fnftBalance.toString());
+
     let eligibleTokens = [hecToken.address, wsHec.address, sHec.address];
 
     const HectorRegistrationFactory = await ethers.getContractFactory(
@@ -189,6 +193,13 @@ describe('Hector Registration', function () {
       await expect(
         hectorRegistration.registerWallet(testWallet2.address)
       ).to.be.revertedWith('INVALID_WALLET');
+    });
+    it('Should Not Pass - Unauthorized Access (Not Moderator)', async function () {
+      await expect(
+        hectorRegistration
+          .connect(testWallet2)
+          .registerWallet(registeredWallet.address)
+      ).to.be.reverted;
     });
   });
 

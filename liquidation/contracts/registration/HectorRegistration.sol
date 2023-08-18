@@ -202,7 +202,7 @@ contract HectorRegistration is
         @notice register one wallet
         @param walletAddress Wallet address
      */
-    function registerWallet(address walletAddress) external {         
+    function registerWallet(address walletAddress) external onlyRole(MODERATOR_ROLE) {         
         _registerWallet(walletAddress);
     }
 
