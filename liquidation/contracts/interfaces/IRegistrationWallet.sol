@@ -20,4 +20,13 @@ interface IRegistrationWallet {
         Token[] tokens;
     }
     function getAllTokens() external view returns (address[] memory);
+
+    /// @notice Returns all wallet addresses    
+    function getAllWallets() external view returns (address[] memory);
+
+     /// @notice Returns all wallet addresses from a range
+    function getWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory);
+
+      /// @notice Returns wallet at index
+    function getAllWalletAtIndex(uint16 index) external view returns (address);
 }
