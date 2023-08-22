@@ -66,7 +66,7 @@ contract HectorRedemption is
 
         _convertArrayToEnumerableSet(_tokens);
 
-        fnft = IERC721Enumerable(_fnft);
+        fnft = IERC721(_fnft);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -133,7 +133,7 @@ contract HectorRedemption is
         @notice deposit a list of FNFT to the contract
         @param fnftIds Wallet address
      */
-    function depositFNFT(uint256[] fnftIds) external {  
+    function depositFNFTs(uint256[] fnftIds) external {  
         if (fnftIds.length <= 0) revert INVALID_PARAM();
                
         uint256 length = fnftIds.length;
@@ -151,7 +151,7 @@ contract HectorRedemption is
     /**
         @notice burn all tokens from contract
      */
-    function burnToken() external onlyRole(MODERATOR_ROLE) {    
+    function burnTokens() external onlyRole(MODERATOR_ROLE) {    
         uint256 length = eligibleTokens.length();
 
         for (uint256 i = 0; i < length; i++) {
@@ -166,7 +166,7 @@ contract HectorRedemption is
     /**
         @notice burn all FNFTs from depositedFNFTs 
      */
-    function burnFNFT() external onlyRole(MODERATOR_ROLE) {            
+    function burnFNFTs() external onlyRole(MODERATOR_ROLE) {            
         uint256 length = depositedFNFTs.length();
 
         for (uint256 i = 0; i < length; i++) {
