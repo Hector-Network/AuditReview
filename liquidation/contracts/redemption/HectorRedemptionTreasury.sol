@@ -8,7 +8,7 @@ import {EnumerableSet} from '@openzeppelin/contracts/utils/structs/EnumerableSet
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/security/Pausable.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import {IRegistrationWallet} from '../interfaces/IRegistrationWallet.sol';
+
 
 error INVALID_ADDRESS();
 error INVALID_AMOUNT();
@@ -28,10 +28,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
 
     /// @notice Deposited tokens set
     EnumerableSet.AddressSet private tokensSet;
-    /// @notice Registered wallets
-    EnumerableSet.AddressSet private registeredWallets;
 
-    IRegistrationWallet public registrationWalletContract;
 
     /* ======== EVENTS ======== */
 
@@ -40,16 +37,13 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     event SendRedemption(address indexed who, address indexed token, uint256 amount);
 
     /* ======== INITIALIZATION ======== */
-    constructor(address _dao, address multisigWallet, address moderator, address _registrationWallet) {
+    constructor(address _dao, address multisigWallet, address moderator, address _rnft) {
        if (_dao == address(0)) revert INVALID_ADDRESS();
-       if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
+       if (_rnft == address(0)) revert INVALID_ADDRESS();
 
         dao = _dao;
 
-        registrationWalletContract = IRegistrationWallet(_registrationWallet);
-        address[] memory _wallets = registrationWalletContract.getAllWallets();
 
-        _convertArrayToEnumerableSet(_wallets);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -89,13 +83,13 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
 
     /**
         @notice send redemption token to user
+
      */ 
-    function transferRedemption(address _token, address _to, uint256 _amount) external onlyRole(MODERATOR_ROLE) {
+    function transferRedemption(uint256 rnftid, address _token, address _to) external onlyRole(MODERATOR_ROLE) {
         if (_token == address(0)) revert INVALID_ADDRESS();
-        if (_to == address(0)) revert INVALID_ADDRESS();
-        if (_amount == 0) revert INVALID_AMOUNT();        
-        if (!registeredWallets.contains(_to)) revert INVALID_WALLET();
+        if (_to == address(0)) revert INVALID_ADDRESS();     
         if (!tokensSet.contains(_token)) revert INVALID_WALLET();
+        //Check if user owns the rnft
 
         uint256 balance = IERC20(_token).balanceOf(address(this));
         if (balance < _amount) revert INVALID_AMOUNT();
@@ -156,11 +150,4 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
         emit Deposited(msg.sender, _token, _amount);
     }
 
-    function _convertArrayToEnumerableSet(address[] memory _wallets) private {
-        uint256 length = _wallets.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            registeredWallets.add(_wallets[i]);
-        }
-    }
 }
