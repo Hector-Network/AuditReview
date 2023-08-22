@@ -19,5 +19,5 @@ interface IRegistrationWallet {
         /// @notice a wallet can have multiple tokens of type Token
         Token[] tokens;
     }
-    
+    function getAllTokens() external view returns (address[] memory);
 }
