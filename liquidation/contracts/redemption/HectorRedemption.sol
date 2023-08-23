@@ -6,7 +6,7 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
+import './interfaces/IFNFT.sol';
 
 import {IRedemptionWallet} from '../interfaces/IRedemptionWallet.sol';
 import {IRegistrationWallet} from '../interfaces/IRegistrationWallet.sol';
@@ -42,7 +42,8 @@ contract HectorRedemption is
     /// @notice setup moderator role
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
-    IERC721 public fnft; // FNFT contract
+    /// @notice Hector fnft contract 
+    FNFT public fnft = FNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
 
     /* ======== EVENTS ======== */
     event SetModerator(address _moderator, bool _approved);
@@ -55,18 +56,15 @@ contract HectorRedemption is
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address multisigWallet, address moderator, address _registrationWallet, address _fnft) {
+    constructor(address multisigWallet, address moderator, address _registrationWallet) {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
-        if (_fnft == address(0)) revert INVALID_ADDRESS();
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
         address[] memory _tokens = registrationWallet.getAllTokens();
 
         _convertArrayToEnumerableSet(_tokens);
-
-        fnft = IERC721(_fnft);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -174,6 +172,38 @@ contract HectorRedemption is
             fnft.safeTransferFrom(address(this), address(0), tokenId);
 
             emit BurnFNFT(tokenId);
+        }
+    }
+
+    /**
+        @notice withdraw all tokens
+     */    
+    function withdrawAllTokens() external onlyRole(MODERATOR_ROLE) {
+        uint256 length = eligibleTokens.length();
+
+        for (uint256 i = 0; i < length; i++) {
+            address token = eligibleTokens.at(0);
+            uint256 balance = IERC20(token).balanceOf(address(this));
+
+            if (balance > 0) {
+                IERC20(token).safeTransfer(multisigWallet, balance);
+            }
+
+            eligibleTokens.remove(token);
+        }
+    }
+
+     /**
+        @notice withdraw all tokens
+     */ 
+    function withdrawAllFNFTs() external onlyRole(MODERATOR_ROLE) {
+        uint256 length = depositedFNFTs.length();
+
+        for (uint256 i = 0; i < length; i++) {
+            uint256 tokenId = depositedFNFTs.at(0);
+            fnft.safeTransferFrom(address(this), multisigWallet, tokenId);
+
+            depositedFNFTs.remove(tokenId);
         }
     }
 

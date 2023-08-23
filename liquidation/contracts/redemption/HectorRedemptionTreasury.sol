@@ -8,11 +8,14 @@ import {EnumerableSet} from '@openzeppelin/contracts/utils/structs/EnumerableSet
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/security/Pausable.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import '@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol';
+import './interfaces/ITokenVault.sol';
 
 
 error INVALID_ADDRESS();
 error INVALID_AMOUNT();
-error INVALID_WALLET();
+error INVALID_TOKEN();
+error INVALID_RECIPIENT();
 
 contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     using SafeERC20 for IERC20;
@@ -23,8 +26,8 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     /// @notice setup moderator role
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
-    /// @notice DAO wallet
-    address public dao;
+    /// @notice Redeem fnft contract
+    IERC721Enumerable public fnft;
 
     /// @notice Deposited tokens set
     EnumerableSet.AddressSet private tokensSet;
@@ -34,16 +37,15 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
 
     event Deposited(address indexed who, address indexed token, uint256 amount);
     event SetModerator(address _moderator, bool _approved);
-    event SendRedemption(address indexed who, address indexed token, uint256 amount);
+    event SendRedemption(address indexed who, uint256 fnftid, uint256 amount);
 
     /* ======== INITIALIZATION ======== */
-    constructor(address _dao, address multisigWallet, address moderator, address _rnft) {
-       if (_dao == address(0)) revert INVALID_ADDRESS();
-       if (_rnft == address(0)) revert INVALID_ADDRESS();
+    constructor(address multisigWallet, address moderator, address _redeemFNFT) {
+       if (multisigWallet == address(0)) revert INVALID_ADDRESS();
+       if (moderator == address(0)) revert INVALID_ADDRESS();
+       if (_fnft == address(0)) revert INVALID_ADDRESS();
 
-        dao = _dao;
-
-
+        fnft = IERC721Enumerable(_redeemFNFT);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -73,47 +75,25 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
         _unpause();
     }
 
-    function setDAO(address _dao) external onlyRole(MODERATOR_ROLE) {
-        if (_dao == address(0)) revert INVALID_ADDRESS();
-
-        dao = _dao;
-    }
-
-    /* ======== DAO FUNCTIONS ======== */
-
     /**
-        @notice send redemption token to user
-
-     */ 
-    function transferRedemption(uint256 rnftid, address _token, address _to) external onlyRole(MODERATOR_ROLE) {
+        @notice transfer redemption funds to user
+        @param rnftid  fnft id
+        @param _token  token address
+        @param _to  recipient address
+        @param _amount  amount to transfer
+     */
+    function transferRedemption(uint256 rnftid, address _token, address _to, uint256 _amount) external onlyRole(MODERATOR_ROLE) {        
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_to == address(0)) revert INVALID_ADDRESS();     
-        if (!tokensSet.contains(_token)) revert INVALID_WALLET();
-        //Check if user owns the rnft
+        if (!tokensSet.contains(_token)) revert INVALID_TOKEN();
+        if (fnft.ownerOf(rnftid) != _to || fnft.balanceOf(_to) == 0) revert INVALID_RECIPIENT();
 
         uint256 balance = IERC20(_token).balanceOf(address(this));
         if (balance < _amount) revert INVALID_AMOUNT();
 
         IERC20(_token).safeTransfer(_to, _amount);
 
-        emit SendRedemption(_to, _token, _amount);
-    }
-
-    /**
-        @notice withdraw tokens
-     */ 
-    function withdrawTokens(address[] memory _tokens) external onlyRole(MODERATOR_ROLE) {
-        uint256 length = _tokens.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            address token = _tokens[i];
-            if (token == address(0)) revert INVALID_ADDRESS();
-
-            uint256 balance = IERC20(token).balanceOf(address(this));
-            if (balance > 0) {
-                IERC20(token).safeTransfer(dao, balance);
-            }
-        }
+        emit SendRedemption(_to, rnftid, _amount);
     }
 
     /**
@@ -134,12 +114,10 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
         }
     }
 
-    /* ======== USER FUNCTIONS ======== */
-
     /**
-        @notice deposit token
+        @notice deposit redemption funds to contract
      */ 
-    function deposit(address _token, uint256 _amount) external whenNotPaused {
+    function deposit(address _token, uint256 _amount) external whenNotPaused onlyRole(MODERATOR_ROLE) {
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_amount == 0) revert INVALID_AMOUNT();
 

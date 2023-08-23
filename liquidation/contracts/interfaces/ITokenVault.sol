@@ -2,24 +2,30 @@
 pragma solidity ^0.8.7;
 
 interface ITokenVault {
-    event FNFTMinted(
-        address indexed asset,
+    event RedeemNFTMinted(
         address indexed from,
         uint256 indexed fnftId,
-        uint256 depositAmount,
-        uint256 endTime
+        uint256 eligibleTORAmount,
+        uint256 eligibleHECAmount, 
+        uint256 redeemableAmount
     );
 
-    event FNFTWithdrawn(
+    event RedeemNFTWithdrawn(
         address indexed from,
         uint256 indexed fnftId,
         uint256 indexed quantity
     );
 
+    struct InputToken {
+        address tokenAddress;
+        uint256 amount;
+    }
     struct FNFTConfig {
-        address asset; // The token being stored
-        uint256 depositAmount; // How many tokens
-        uint256 endTime; // Time lock expiry
+        uint256 eligibleTORAmount; // The amount of TOR tokens exchanged from user's tokens
+        uint256 eligibleHECAmount; // The amount of HEC tokens exchanged from user's tokens
+        InputToken[] inputTokens; // The tokens that the user is depositing
+        address redeemableToken; // The token that the user is redeeming
+        uint256 redeemableAmount; // The amount of HEC tokens exchanged from user's tokens        
     }
 
     function getFNFT(uint256 fnftId) external view returns (FNFTConfig memory);

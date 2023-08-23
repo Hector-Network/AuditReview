@@ -1,33 +1,59 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.7;
-
-import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/security/Pausable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-
-import './LockAccessControl.sol';
-
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import './interfaces/ITokenVault.sol';
 import './interfaces/IFNFT.sol';
+import './interfaces/IRedemptionTreasury.sol';
+
+error INVALID_PARAM();
+error INVALID_ADDRESS();
+error INVALID_AMOUNT();
+error INVALID_WALLET();
+error INVALID_BALANCE();
+error INVALID_RECIPIENT();
 
 // Credits to Revest Team
 // Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/TokenVault.sol
 contract TokenVault is
     ITokenVault,
-    LockAccessControl,
     Pausable,
-    ReentrancyGuard
+    Ownable,
+    AccessControl
 {
     using SafeERC20 for IERC20;
 
-    mapping(uint256 => FNFTConfig) private fnfts;
+    /// @notice setup moderator role
+    bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
-    mapping(address => bool) public lockDisabled;
+    /// @notice Redeem fnft contract
+    FNFT public fnft;
+
+    /// @notice redemption treasury contract
+    IRedemptionTreasury public treasury;
+
+    /// @notice FNFT configuration
+    mapping(uint256 => FNFTConfig) private fnfts;
 
     /* ======= CONSTRUCTOR ======= */
 
-    constructor(address provider) LockAccessControl(provider) {}
+    constructor(address multisigWallet,  address moderator,  address _fnft, address _treasury) {
+        if (multisigWallet == address(0)) revert INVALID_ADDRESS();
+        if (moderator == address(0)) revert INVALID_ADDRESS();
+        if (_fnft == address(0)) revert INVALID_ADDRESS();
+        if (_treasury == address(0)) revert INVALID_ADDRESS();
+
+        fnft = FNFT(_fnft);
+        treasury = IRedemptionTreasury(_treasury);
+
+        _transferOwnership(multisigWallet);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+		_setupRole(MODERATOR_ROLE, msg.sender);
+        _setupRole(MODERATOR_ROLE, moderator);
+    }
 
     ///////////////////////////////////////////////////////
     //               MANAGER CALLED FUNCTIONS            //
@@ -41,92 +67,81 @@ contract TokenVault is
         return _unpause();
     }
 
-    function disableLock(address _lockFarm) external onlyOwner whenNotPaused {
-        require(!lockDisabled[_lockFarm], 'lock is disabled already');
-        lockDisabled[_lockFarm] = true;
-    }
-
-    function enableLock(address _lockFarm) external onlyOwner whenNotPaused {
-        require(lockDisabled[_lockFarm], 'lock is enabled already');
-        lockDisabled[_lockFarm] = false;
-    }
-
     ///////////////////////////////////////////////////////
     //               USER CALLED FUNCTIONS               //
     ///////////////////////////////////////////////////////
 
+    /**
+     * @notice Mint a new FNFT to acknowledge receipt of user's tokens
+     * @param recipient The address to receive the FNFT
+     * @param fnftConfig The FNFT configuration
+     * @return The FNFT ID
+     */
     function mint(address recipient, FNFTConfig memory fnftConfig)
         external
-        override
-        onlyFarm
         whenNotPaused
-        nonReentrant
+        onlyRole(MODERATOR_ROLE)
         returns (uint256)
     {
-        require(recipient != address(0), 'TokenVault: Invalid recipient');
-        require(fnftConfig.asset != address(0), 'TokenVault: Invalid asset');
-        require(
-            fnftConfig.depositAmount > 0,
-            'TokenVault: Invalid deposit amount'
-        );
+        if (recipient == address(0)) revert INVALID_ADDRESS();
+        if (fnftConfig.redeemableAmount == 0 ||
+            (fnftConfig.redeemTORAmount == 0 && 
+            fnftConfig.redeemHECAmount == 0)) revert INVALID_AMOUNT();
 
-        IERC20(fnftConfig.asset).safeTransferFrom(
-            recipient,
-            address(this),
-            fnftConfig.depositAmount
-        );
-
-        uint256 fnftId = getFNFT().mint(recipient);
+        uint256 fnftId = fnft.mint(recipient);
         fnfts[fnftId] = fnftConfig;
 
-        emit FNFTMinted(
-            fnftConfig.asset,
+        emit RedeemNFTMinted(
             recipient,
             fnftId,
-            fnftConfig.depositAmount,
-            fnftConfig.endTime
+            fnftConfig.eligibleTORAmount,
+            fnftConfig.eligibleHECAmount, 
+            fnftConfig.redeemableAmount
         );
 
         return fnftId;
     }
 
+    /**
+     * @notice Withdraw a FNFT and redeem the user's tokens
+     * @param recipient The address to receive the FNFT
+     * @param fnftId The FNFT ID
+     */
     function withdraw(address recipient, uint256 fnftId)
         external
-        override
-        onlyFarm
         whenNotPaused
-        nonReentrant
+        onlyRole(MODERATOR_ROLE)
     {
-        require(
-            getFNFT().ownerOf(fnftId) == recipient,
-            'TokenVault: Invalid recipient'
-        );
+        if (fnft.ownerOf(rnftid) != recipient || fnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
 
         FNFTConfig memory fnftConfig = fnfts[fnftId];
 
-        require(
-            lockDisabled[msg.sender] || fnftConfig.endTime <= block.timestamp,
-            'TokenVault: locked'
-        );
+        fnft.burn(fnftId);        
 
-        getFNFT().burn(fnftId);
-
-        IERC20(fnftConfig.asset).safeTransfer(
+        treasury.transferRedemption(
+            fnftId,
+            fnftConfig.redeemableToken,
             recipient,
-            fnftConfig.depositAmount
+            fnftConfig.redeemableAmount
         );
 
         delete fnfts[fnftId];
+
+        emit RedeemNFTWithdrawn(recipient, fnftId, fnftConfig.depositAmount);
     }
 
     ///////////////////////////////////////////////////////
     //                  VIEW FUNCTIONS                   //
     ///////////////////////////////////////////////////////
 
+    /**
+     * @notice Returns the FNFT configuration
+     * @param fnftId The FNFT ID
+     * @return The FNFT configuration
+     */
     function getFNFT(uint256 fnftId)
         external
         view
-        override
         returns (FNFTConfig memory)
     {
         return fnfts[fnftId];

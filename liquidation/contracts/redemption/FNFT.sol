@@ -7,17 +7,16 @@ import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol';
 import '@openzeppelin/contracts/access/AccessControlEnumerable.sol';
 import '@openzeppelin/contracts/utils/Counters.sol';
-
-import './LockAccessControl.sol';
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 // Credits to Revest Team
 // Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/FNFTHandler.sol
 contract FNFT is
     AccessControlEnumerable,
-    LockAccessControl,
     ERC721Enumerable,
     ERC721Burnable,
-    ERC721Pausable
+    ERC721Pausable,
+    Ownable
 {
     using Counters for Counters.Counter;
 
@@ -26,16 +25,26 @@ contract FNFT is
 
     bytes32 public constant PAUSER_ROLE = keccak256('PAUSER_ROLE');
 
+    bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
+
     Counters.Counter private _fnftIdTracker;
 
     /* ======= CONSTRUCTOR ======= */
 
-    constructor(address provider)
+    constructor(address multisigWallet, address moderator)
         ERC721(NAME, SYMBOL)
-        LockAccessControl(provider)
     {
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _setupRole(PAUSER_ROLE, _msgSender());
+        if (multisigWallet == address(0)) revert INVALID_ADDRESS();
+        if (moderator == address(0)) revert INVALID_ADDRESS();
+        if (_fnft == address(0)) revert INVALID_ADDRESS();
+
+        fnft = IERC721Enumerable(_fnft);
+
+        _transferOwnership(multisigWallet);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+		_setupRole(MODERATOR_ROLE, msg.sender);
+        _setupRole(MODERATOR_ROLE, moderator);
+        _setupRole(PAUSER_ROLE,  msg.sender);
     }
 
     ///////////////////////////////////////////////////////
@@ -45,7 +54,7 @@ contract FNFT is
     function mint(address to)
         public
         virtual
-        onlyTokenVault
+        onlyRole(MODERATOR_ROLE)
         returns (uint256 fnftId)
     {
         // We cannot just use balanceOf to create the new tokenId because tokens
