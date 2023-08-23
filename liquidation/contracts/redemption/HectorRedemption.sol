@@ -6,7 +6,7 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import './interfaces/IFNFT.sol';
+import '../interfaces/IFNFT.sol';
 
 import {IRedemptionWallet} from '../interfaces/IRedemptionWallet.sol';
 import {IRegistrationWallet} from '../interfaces/IRegistrationWallet.sol';
@@ -34,16 +34,13 @@ contract HectorRedemption is
     IRegistrationWallet public registrationWallet;
 
     EnumerableSet.AddressSet private eligibleTokens;
-    EnumerableSet.AddressSet private depositedFNFTs;
-
-    /// @notice user wallet => array of tokens
-    mapping(address => Token[]) public tokensInWallet;
+    uint256[] depositedFNFTs;
 
     /// @notice setup moderator role
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
     /// @notice Hector fnft contract 
-    FNFT public fnft = FNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
+    IFNFT public fnft = IFNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
 
     /* ======== EVENTS ======== */
     event SetModerator(address _moderator, bool _approved);
@@ -131,16 +128,17 @@ contract HectorRedemption is
         @notice deposit a list of FNFT to the contract
         @param fnftIds Wallet address
      */
-    function depositFNFTs(uint256[] fnftIds) external {  
+    function depositFNFTs(uint256[] memory fnftIds) external {  
         if (fnftIds.length <= 0) revert INVALID_PARAM();
                
         uint256 length = fnftIds.length;
 
         for (uint256 i = 0; i < length; i++) {
             uint256 tokenId = fnftIds[i];
-            if (depositedFNFTs.contains(tokenId)) revert EXISTING_FNFT();
+            if (fnft.ownerOf(tokenId) != msg.sender) revert INVALID_WALLET();
+
             fnft.safeTransferFrom(msg.sender, address(this), tokenId);
-            depositedFNFTs.add(tokenId);
+            depositedFNFTs.push(tokenId);
             emit DepositFNFT(tokenId);
         }
         
@@ -165,10 +163,10 @@ contract HectorRedemption is
         @notice burn all FNFTs from depositedFNFTs 
      */
     function burnFNFTs() external onlyRole(MODERATOR_ROLE) {            
-        uint256 length = depositedFNFTs.length();
+        uint256 length = depositedFNFTs.length;
 
         for (uint256 i = 0; i < length; i++) {
-            uint256 tokenId = depositedFNFTs.at(i);
+            uint256 tokenId = depositedFNFTs[i];
             fnft.safeTransferFrom(address(this), address(0), tokenId);
 
             emit BurnFNFT(tokenId);
@@ -186,7 +184,7 @@ contract HectorRedemption is
             uint256 balance = IERC20(token).balanceOf(address(this));
 
             if (balance > 0) {
-                IERC20(token).safeTransfer(multisigWallet, balance);
+                IERC20(token).safeTransfer(owner(), balance);
             }
 
             eligibleTokens.remove(token);
@@ -197,14 +195,13 @@ contract HectorRedemption is
         @notice withdraw all tokens
      */ 
     function withdrawAllFNFTs() external onlyRole(MODERATOR_ROLE) {
-        uint256 length = depositedFNFTs.length();
+        uint256 length = depositedFNFTs.length;
 
         for (uint256 i = 0; i < length; i++) {
-            uint256 tokenId = depositedFNFTs.at(0);
-            fnft.safeTransferFrom(address(this), multisigWallet, tokenId);
-
-            depositedFNFTs.remove(tokenId);
-        }
+            uint256 tokenId = depositedFNFTs[i];
+            fnft.safeTransferFrom(address(this), owner(), tokenId);
+            depositedFNFTs[i] = depositedFNFTs[depositedFNFTs.length - 1];
+            depositedFNFTs.pop();        }
     }
 
     /* ======== VIEW FUNCTIONS ======== */
@@ -216,13 +213,8 @@ contract HectorRedemption is
 
     /// @notice Returns the length of eligible tokens
 	function getDepositedFNFTCount() external view returns (uint256) {
-		return depositedFNFTs.length();
+		return depositedFNFTs.length;
 	}
-
-     /// @notice Returns all depositedFNFTs ids
-    function getDepositedFNFTs() external view returns (uint256[] memory) {
-        return depositedFNFTs.values();
-    }
 
     /// @notice Returns an array of eligible tokens and its balance
     function getTotalBalance() external view returns (TokenBalance[] memory) {

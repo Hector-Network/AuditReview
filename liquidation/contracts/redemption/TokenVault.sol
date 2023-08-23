@@ -5,9 +5,9 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import './interfaces/ITokenVault.sol';
-import './interfaces/IFNFT.sol';
-import './interfaces/IRedemptionTreasury.sol';
+import '../interfaces/ITokenVault.sol';
+import '../interfaces/IFNFT.sol';
+import '../interfaces/IRedemptionTreasury.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
@@ -30,7 +30,7 @@ contract TokenVault is
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
     /// @notice Redeem fnft contract
-    FNFT public fnft;
+    IFNFT public fnft;
 
     /// @notice redemption treasury contract
     IRedemptionTreasury public treasury;
@@ -46,7 +46,7 @@ contract TokenVault is
         if (_fnft == address(0)) revert INVALID_ADDRESS();
         if (_treasury == address(0)) revert INVALID_ADDRESS();
 
-        fnft = FNFT(_fnft);
+        fnft = IFNFT(_fnft);
         treasury = IRedemptionTreasury(_treasury);
 
         _transferOwnership(multisigWallet);
@@ -85,8 +85,8 @@ contract TokenVault is
     {
         if (recipient == address(0)) revert INVALID_ADDRESS();
         if (fnftConfig.redeemableAmount == 0 ||
-            (fnftConfig.redeemTORAmount == 0 && 
-            fnftConfig.redeemHECAmount == 0)) revert INVALID_AMOUNT();
+            (fnftConfig.eligibleTORAmount == 0 && 
+            fnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
 
         uint256 fnftId = fnft.mint(recipient);
         fnfts[fnftId] = fnftConfig;
@@ -112,7 +112,7 @@ contract TokenVault is
         whenNotPaused
         onlyRole(MODERATOR_ROLE)
     {
-        if (fnft.ownerOf(rnftid) != recipient || fnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
+        if (fnft.ownerOf(fnftId) != recipient || fnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
 
         FNFTConfig memory fnftConfig = fnfts[fnftId];
 
@@ -127,7 +127,7 @@ contract TokenVault is
 
         delete fnfts[fnftId];
 
-        emit RedeemNFTWithdrawn(recipient, fnftId, fnftConfig.depositAmount);
+        emit RedeemNFTWithdrawn(recipient, fnftId, fnftConfig.redeemableAmount);
     }
 
     ///////////////////////////////////////////////////////

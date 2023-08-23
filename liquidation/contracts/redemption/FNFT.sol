@@ -9,6 +9,7 @@ import '@openzeppelin/contracts/access/AccessControlEnumerable.sol';
 import '@openzeppelin/contracts/utils/Counters.sol';
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+error INVALID_ADDRESS();
 // Credits to Revest Team
 // Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/FNFTHandler.sol
 contract FNFT is
@@ -36,9 +37,6 @@ contract FNFT is
     {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
-        if (_fnft == address(0)) revert INVALID_ADDRESS();
-
-        fnft = IERC721Enumerable(_fnft);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -88,13 +86,20 @@ contract FNFT is
     //                  INTERNAL FUNCTIONS               //
     ///////////////////////////////////////////////////////
 
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal virtual override(ERC721, ERC721Enumerable, ERC721Pausable) {
-        super._beforeTokenTransfer(from, to, tokenId);
+    function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
+        internal
+        override(ERC721, ERC721Enumerable, ERC721Pausable)
+    {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
+    
+    // function _beforeTokenTransfer(
+    //     address from,
+    //     address to,
+    //     uint256 tokenId
+    // ) internal virtual override(ERC721, ERC721Enumerable, ERC721Pausable) {
+    //     super._beforeTokenTransfer(from, to, tokenId);
+    // }
 
     /**
      * @dev See {IERC165-supportsInterface}.

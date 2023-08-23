@@ -23,7 +23,6 @@ interface ITokenVault {
     struct FNFTConfig {
         uint256 eligibleTORAmount; // The amount of TOR tokens exchanged from user's tokens
         uint256 eligibleHECAmount; // The amount of HEC tokens exchanged from user's tokens
-        InputToken[] inputTokens; // The tokens that the user is depositing
         address redeemableToken; // The token that the user is redeeming
         uint256 redeemableAmount; // The amount of HEC tokens exchanged from user's tokens        
     }

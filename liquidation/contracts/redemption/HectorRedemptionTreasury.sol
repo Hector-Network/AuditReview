@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/security/Pausable.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import '@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol';
-import './interfaces/ITokenVault.sol';
+import '../interfaces/ITokenVault.sol';
 
 
 error INVALID_ADDRESS();
@@ -43,7 +43,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     constructor(address multisigWallet, address moderator, address _redeemFNFT) {
        if (multisigWallet == address(0)) revert INVALID_ADDRESS();
        if (moderator == address(0)) revert INVALID_ADDRESS();
-       if (_fnft == address(0)) revert INVALID_ADDRESS();
+       if (_redeemFNFT == address(0)) revert INVALID_ADDRESS();
 
         fnft = IERC721Enumerable(_redeemFNFT);
 
@@ -107,7 +107,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
             uint256 balance = IERC20(token).balanceOf(address(this));
 
             if (balance > 0) {
-                IERC20(token).safeTransfer(dao, balance);
+                IERC20(token).safeTransfer(owner(), balance);
             }
 
             tokensSet.remove(token);
