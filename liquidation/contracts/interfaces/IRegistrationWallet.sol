@@ -29,4 +29,7 @@ interface IRegistrationWallet {
 
       /// @notice Returns wallet at index
     function getAllWalletAtIndex(uint16 index) external view returns (address);
+
+    /// @notice return if wallet is registered
+    function isRegisteredWallet(address _walletAddress) external view returns (bool);
 }

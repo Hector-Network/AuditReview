@@ -40,7 +40,8 @@ contract HectorRedemption is
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
     /// @notice Hector fnft contract 
-    IFNFT public fnft = IFNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
+    //IFNFT public fnft = IFNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
+    IFNFT public fnft;  //TODO: change to mainnet address
 
     /* ======== EVENTS ======== */
     event SetModerator(address _moderator, bool _approved);
@@ -53,10 +54,12 @@ contract HectorRedemption is
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address multisigWallet, address moderator, address _registrationWallet) {
+    constructor(address multisigWallet, address moderator, address _registrationWallet, address _fnft) {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
+
+        fnft = IFNFT(_fnft);
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
         address[] memory _tokens = registrationWallet.getAllTokens();
@@ -116,7 +119,8 @@ contract HectorRedemption is
      */
     function deposit(address token, uint256 amount) external {         
         if (amount <= 0) revert INVALID_AMOUNT();
-        if (!eligibleTokens.contains(token)) revert INVALID_WALLET();
+        if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
+        if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
 
         //get whitelist token
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -141,7 +145,6 @@ contract HectorRedemption is
             depositedFNFTs.push(tokenId);
             emit DepositFNFT(tokenId);
         }
-        
     }
 
     /**

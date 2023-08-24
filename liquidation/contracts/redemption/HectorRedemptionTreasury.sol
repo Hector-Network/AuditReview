@@ -8,9 +8,8 @@ import {EnumerableSet} from '@openzeppelin/contracts/utils/structs/EnumerableSet
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/security/Pausable.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import '@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol';
 import '../interfaces/ITokenVault.sol';
-
+import '../interfaces/IFNFT.sol';
 
 error INVALID_ADDRESS();
 error INVALID_AMOUNT();
@@ -27,7 +26,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
     /// @notice Redeem fnft contract
-    IERC721Enumerable public fnft;
+    IFNFT public fnft;
 
     /// @notice Deposited tokens set
     EnumerableSet.AddressSet private tokensSet;
@@ -45,7 +44,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
        if (moderator == address(0)) revert INVALID_ADDRESS();
        if (_redeemFNFT == address(0)) revert INVALID_ADDRESS();
 
-        fnft = IERC721Enumerable(_redeemFNFT);
+        fnft = IFNFT(_redeemFNFT);
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -115,8 +114,10 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     }
 
     /**
-        @notice deposit redemption funds to contract
-     */ 
+        @notice Deposit token to treasury for redemption
+        @param _token  token address
+        @param _amount  amount to deposit
+     */
     function deposit(address _token, uint256 _amount) external whenNotPaused onlyRole(MODERATOR_ROLE) {
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_amount == 0) revert INVALID_AMOUNT();
