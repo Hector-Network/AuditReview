@@ -7,17 +7,17 @@ import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol';
 import '@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol';
 import '@openzeppelin/contracts/access/AccessControlEnumerable.sol';
 import '@openzeppelin/contracts/utils/Counters.sol';
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-error INVALID_ADDRESS();
+import './LockAccessControl.sol';
+
 // Credits to Revest Team
 // Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/FNFTHandler.sol
 contract FNFT is
     AccessControlEnumerable,
+    LockAccessControl,
     ERC721Enumerable,
     ERC721Burnable,
-    ERC721Pausable,
-    Ownable
+    ERC721Pausable
 {
     using Counters for Counters.Counter;
 
@@ -32,17 +32,12 @@ contract FNFT is
 
     /* ======= CONSTRUCTOR ======= */
 
-    constructor(address multisigWallet, address moderator)
+    constructor(address provider)
         ERC721(NAME, SYMBOL)
+        LockAccessControl(provider)
     {
-        if (multisigWallet == address(0)) revert INVALID_ADDRESS();
-        if (moderator == address(0)) revert INVALID_ADDRESS();
-
-        _transferOwnership(multisigWallet);
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-		_setupRole(MODERATOR_ROLE, msg.sender);
-        _setupRole(MODERATOR_ROLE, moderator);
-        _setupRole(PAUSER_ROLE,  msg.sender);
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _setupRole(PAUSER_ROLE, _msgSender());
     }
 
     ///////////////////////////////////////////////////////
@@ -52,7 +47,7 @@ contract FNFT is
     function mint(address to)
         public
         virtual
-        onlyRole(MODERATOR_ROLE)
+        onlyModerator
         returns (uint256 fnftId)
     {
         // We cannot just use balanceOf to create the new tokenId because tokens
@@ -60,6 +55,14 @@ contract FNFT is
         fnftId = _fnftIdTracker.current();
         _fnftIdTracker.increment();
         _mint(to, fnftId);
+    }
+
+    function burnFromOwner(uint256 fnftId, address _owner) public virtual {
+        require(
+            _isApprovedOrOwner(_owner, fnftId),
+            'ERC721Burnable: caller is not owner nor approved'
+        );
+        _burn(fnftId);
     }
 
     ///////////////////////////////////////////////////////
@@ -92,14 +95,6 @@ contract FNFT is
     {
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
-    
-    // function _beforeTokenTransfer(
-    //     address from,
-    //     address to,
-    //     uint256 tokenId
-    // ) internal virtual override(ERC721, ERC721Enumerable, ERC721Pausable) {
-    //     super._beforeTokenTransfer(from, to, tokenId);
-    // }
 
     /**
      * @dev See {IERC165-supportsInterface}.

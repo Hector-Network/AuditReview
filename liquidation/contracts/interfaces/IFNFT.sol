@@ -7,4 +7,5 @@ interface IFNFT is IERC721Enumerable {
     function mint(address to) external returns (uint256 fnftId);
 
     function burn(uint256 fnftId) external;
+    function burnFromOwner(uint256 fnftId, address _owner) external;
 }

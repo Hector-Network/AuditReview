@@ -9,9 +9,10 @@ import {
   HectorRedemptionTreasury,
   TokenVault,
   RewardToken,
-  HectorFNFT,
+  FNFT,
+  LockAccessControl,
+  LockAddressRegistry,
 } from '../../types';
-import deploy from '../../deploy/hec-tor-script';
 
 describe('Hector Redemption', function () {
   let deployer: SignerWithAddress;
@@ -27,8 +28,8 @@ describe('Hector Redemption', function () {
     sHec: RewardToken,
     unregisteredToken: RewardToken;
 
-  let FNFT: HectorFNFT;
-  let RNFT: HectorFNFT;
+  let FNFT: FNFT;
+  let RNFT: FNFT;
 
   let hectorRegistration: HectorRegistration;
   let hectorRedemption: HectorRedemption;
@@ -37,6 +38,9 @@ describe('Hector Redemption', function () {
   let vaultRNFT: TokenVault; //New RNFT Receipt
   let walletAddresses: [];
   let totalWallets: number;
+
+  let lockAccess: LockAccessControl;
+  let lockAddressRegistry: LockAddressRegistry;
 
   before(async function () {
     //this.timeout(10000000);
@@ -56,11 +60,17 @@ describe('Hector Redemption', function () {
     sHec = (await TokenFactory.deploy()) as RewardToken;
     unregisteredToken = (await TokenFactory.deploy()) as RewardToken;
 
-    const FNFTFactory = await ethers.getContractFactory('HectorFNFT');
-    FNFT = (await FNFTFactory.deploy()) as HectorFNFT;
-    RNFT = (await FNFTFactory.deploy()) as HectorFNFT;
-
     let eligibleTokens = [hecToken.address, wsHec.address, sHec.address];
+
+    const lockAccessRegistryFactory = await ethers.getContractFactory(
+      'LockAddressRegistry'
+    );
+    lockAddressRegistry =
+      (await lockAccessRegistryFactory.deploy()) as LockAddressRegistry;
+
+    const FNFTFactory = await ethers.getContractFactory('FNFT');
+    FNFT = (await FNFTFactory.deploy(lockAddressRegistry.address)) as FNFT;
+    RNFT = (await FNFTFactory.deploy(lockAddressRegistry.address)) as FNFT;
 
     //Deploy Registration
     const HectorRegistrationFactory = await ethers.getContractFactory(
@@ -70,7 +80,7 @@ describe('Hector Redemption', function () {
       multisig.address,
       moderator.address,
       eligibleTokens,
-      FNFT.address
+      RNFT.address
     )) as HectorRegistration;
 
     //Deploy Redemption
@@ -79,10 +89,8 @@ describe('Hector Redemption', function () {
     );
 
     hectorRedemption = (await HectorRedemptionFactory.deploy(
-      multisig.address,
-      moderator.address,
-      hectorRegistration.address,
-      FNFT.address
+      lockAddressRegistry.address,
+      hectorRegistration.address
     )) as HectorRedemption;
 
     //Deploy Treasury
@@ -91,25 +99,31 @@ describe('Hector Redemption', function () {
     );
 
     treasury = (await HectorTreasuryFactory.deploy(
-      multisig.address,
-      moderator.address,
-      RNFT.address
+      lockAddressRegistry.address
     )) as HectorRedemptionTreasury;
 
     const TokenVaultFactory = await ethers.getContractFactory('TokenVault');
     vaultFNFT = (await TokenVaultFactory.deploy(
-      multisig.address,
-      deployer.address,
-      FNFT.address,
-      treasury.address
+      lockAddressRegistry.address
     )) as TokenVault;
 
     vaultRNFT = (await TokenVaultFactory.deploy(
+      lockAddressRegistry.address
+    )) as TokenVault;
+
+    // Register Addresses
+    await lockAddressRegistry.initialize(
       multisig.address,
-      deployer.address,
+      moderator.address,
+      vaultRNFT.address,
       RNFT.address,
       treasury.address
-    )) as TokenVault;
+    );
+
+    //add vaultRNFT as a moderator
+    await lockAddressRegistry.setModerator(vaultRNFT.address, true);
+    // await lockAddressRegistry.setModerator(treasury.address, true);
+    // await lockAddressRegistry.setModerator(RNFT.address, true);
 
     //generate 20 wallet addresses to an array
     walletAddresses = [];
@@ -161,7 +175,7 @@ describe('Hector Redemption', function () {
       expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('1');
 
       const nftId = await RNFT.tokenOfOwnerByIndex(registeredWallet.address, 0);
-      expect(nftId).to.equal('1');
+      expect(nftId).to.equal('0');
 
       const balanceBefore = await hecToken.balanceOf(registeredWallet.address);
 
@@ -183,7 +197,7 @@ describe('Hector Redemption', function () {
       );
     });
     it('Should Fail - No FNFT Receipt', async function () {
-      const nftId = 1;
+      const nftId = 0;
 
       await expect(
         treasury.transferRedemption(
@@ -207,7 +221,7 @@ describe('Hector Redemption', function () {
       ).to.be.revertedWith('INVALID_TOKEN');
     });
     it('Should Fail - Invalid amount', async function () {
-      const nftId = 1;
+      const nftId = 0;
 
       await expect(
         treasury.transferRedemption(
@@ -235,30 +249,130 @@ describe('Hector Redemption', function () {
         eligibleTORAmount: 100,
         eligibleHECAmount: 100,
         redeemableToken: hecToken.address,
-        redeemableAmount: 100,
+        redeemableAmount: utils.parseEther('10'),
       };
 
-      const _owner = await RNFT.owner();
-      console.log('RNFT Owner', _owner);
-      console.log('Deployer', deployer.address);
-      console.log('Multisig', multisig.address);
-      console.log('Moderator', moderator.address);
-
       let tx = await vaultRNFT
-        .connect(deployer)
+        .connect(moderator)
         .mint(registeredWallet.address, fnftConfig);
 
-      // expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('2');
+      await expect(tx)
+        .to.emit(vaultRNFT, 'RedeemNFTMinted')
+        .withArgs(
+          registeredWallet.address,
+          1,
+          fnftConfig.eligibleTORAmount,
+          fnftConfig.eligibleHECAmount,
+          fnftConfig.redeemableAmount
+        );
 
-      // await expect(tx)
-      //   .to.emit(treasury, 'RedeemNFTMinted')
-      //   .withArgs(
-      //     registeredWallet.address,
-      //     2,
-      //     fnftConfig.eligibleTORAmount,
-      //     fnftConfig.eligibleHECAmount,
-      //     fnftConfig.redeemableAmount
-      //   );
+      expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('2');
+    });
+    it('Should Fail - Mint Fails with Zero Amount', async function () {
+      let fnftConfig = {
+        eligibleTORAmount: utils.parseEther('0'),
+        eligibleHECAmount: utils.parseEther('0'),
+        redeemableToken: hecToken.address,
+        redeemableAmount: utils.parseEther('0'),
+      };
+
+      await expect(
+        vaultRNFT.connect(moderator).mint(registeredWallet.address, fnftConfig)
+      ).to.be.revertedWith('INVALID_AMOUNT');
+    });
+    it('Should Pass - Withdraw', async function () {
+      let tx = await vaultRNFT.withdraw(registeredWallet.address, 1);
+
+      await expect(tx)
+        .to.emit(vaultRNFT, 'RedeemNFTWithdrawn')
+        .withArgs(registeredWallet.address, 1, utils.parseEther('10'));
+
+      expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('1');
+
+      expect(await hecToken.balanceOf(registeredWallet.address)).to.equal(
+        utils.parseEther('1010')
+      );
+    });
+    it('Should Fail - Unable to Withdraw due to invalid receipt', async function () {
+      await expect(
+        vaultRNFT.withdraw(testWallet1.address, 0)
+      ).to.be.revertedWith('INVALID_RECIPIENT');
+    });
+    it('Should Fail - Unable to Withdraw - Receipt Not Found', async function () {
+      await expect(
+        vaultRNFT.withdraw(registeredWallet.address, 0)
+      ).to.be.revertedWith('INVALID_ADDRESS');
+    });
+  });
+
+  describe('#Redemption Contract', async () => {
+    it('Should Pass - Deposit Token', async function () {
+      await hecToken.mint(testWallet1.address, utils.parseEther('1000'));
+
+      await hectorRegistration.registerWallet(testWallet1.address);
+
+      await hecToken
+        .connect(testWallet1)
+        .approve(hectorRedemption.address, utils.parseEther('1000'));
+
+      let tx = await hectorRedemption
+        .connect(testWallet1)
+        .deposit(hecToken.address, utils.parseEther('100'));
+
+      await expect(tx)
+        .to.emit(hectorRedemption, 'DepositToken')
+        .withArgs(hecToken.address, utils.parseEther('100'));
+
+      expect(await hecToken.balanceOf(testWallet1.address)).to.equal(
+        utils.parseEther('900')
+      );
+    });
+    it('Should Pass - Deposit NFT', async function () {
+      await RNFT.mint(testWallet2.address);
+      const nftId1 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 0);
+
+      await RNFT.mint(testWallet2.address);
+      const nftId2 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 1);
+
+      await RNFT.mint(testWallet2.address);
+      const nftId3 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 2);
+
+      await hectorRegistration.registerWallet(testWallet2.address);
+
+      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId1);
+
+      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId3);
+
+      let tx = await hectorRedemption
+        .connect(testWallet2)
+        .depositFNFTs([nftId1, nftId3]);
+
+      //Check if the NFTs are transferred to the vault
+      expect(await RNFT.balanceOf(testWallet2.address)).to.equal('1');
+
+      //check nft balance on hector redemption
+      expect(await RNFT.balanceOf(hectorRedemption.address)).to.equal('2');
+    });
+    it('Should Pass - Burn Tokens', async function () {
+      const beforeBalance = await hecToken.balanceOf(hectorRedemption.address);
+      let tx = await hectorRedemption.burnTokens();
+
+      const afterBalance = await hecToken.balanceOf(hectorRedemption.address);
+      expect(afterBalance).to.be.equal(0);
+    });
+    it('Should Pass - Burn NFTs', async function () {
+      const beforeBalance = await RNFT.balanceOf(hectorRedemption.address);
+      let tx = await hectorRedemption.burnFNFTs();
+
+      const afterBalance = await RNFT.balanceOf(hectorRedemption.address);
+      expect(afterBalance).to.be.equal(0);
+    });
+    it('Should Fail - Deposit with Invalid Wallet', async function () {
+      await expect(
+        hectorRedemption
+          .connect(registeredWallet)
+          .deposit(hecToken.address, utils.parseEther('100'))
+      ).to.be.revertedWith('INVALID_WALLET');
     });
   });
 });

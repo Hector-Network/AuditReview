@@ -4,10 +4,9 @@ import '@openzeppelin/contracts/security/Pausable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import '../interfaces/ITokenVault.sol';
 import '../interfaces/IFNFT.sol';
-import '../interfaces/IRedemptionTreasury.sol';
+import './LockAccessControl.sol';
 
 error INVALID_PARAM();
 error INVALID_ADDRESS();
@@ -20,40 +19,17 @@ error INVALID_RECIPIENT();
 // Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/TokenVault.sol
 contract TokenVault is
     ITokenVault,
-    Pausable,
-    Ownable,
-    AccessControl
+    LockAccessControl,
+    Pausable
 {
     using SafeERC20 for IERC20;
-
-    /// @notice setup moderator role
-    bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
-
-    /// @notice Redeem fnft contract
-    IFNFT public fnft;
-
-    /// @notice redemption treasury contract
-    IRedemptionTreasury public treasury;
 
     /// @notice FNFT configuration
     mapping(uint256 => FNFTConfig) private fnfts;
 
     /* ======= CONSTRUCTOR ======= */
 
-    constructor(address multisigWallet,  address moderator,  address _fnft, address _treasury) {
-        if (multisigWallet == address(0)) revert INVALID_ADDRESS();
-        if (moderator == address(0)) revert INVALID_ADDRESS();
-        if (_fnft == address(0)) revert INVALID_ADDRESS();
-        if (_treasury == address(0)) revert INVALID_ADDRESS();
-
-        fnft = IFNFT(_fnft);
-        treasury = IRedemptionTreasury(_treasury);
-
-        _transferOwnership(multisigWallet);
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-		_setupRole(MODERATOR_ROLE, msg.sender);
-        _setupRole(MODERATOR_ROLE, moderator);
-    }
+   constructor(address provider) LockAccessControl(provider) {}
 
     ///////////////////////////////////////////////////////
     //               MANAGER CALLED FUNCTIONS            //
@@ -80,7 +56,7 @@ contract TokenVault is
     function mint(address recipient, FNFTConfig memory fnftConfig)
         external
         whenNotPaused
-        onlyRole(MODERATOR_ROLE)
+        onlyModerator
         returns (uint256)
     {
         if (recipient == address(0)) revert INVALID_ADDRESS();
@@ -88,7 +64,7 @@ contract TokenVault is
             (fnftConfig.eligibleTORAmount == 0 && 
             fnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
 
-        uint256 fnftId = fnft.mint(recipient);
+        uint256 fnftId = getFNFT().mint(recipient);
         fnfts[fnftId] = fnftConfig;
 
         emit RedeemNFTMinted(
@@ -110,20 +86,22 @@ contract TokenVault is
     function withdraw(address recipient, uint256 fnftId)
         external
         whenNotPaused
-        onlyRole(MODERATOR_ROLE)
+        onlyModerator
     {
+        IFNFT fnft = getFNFT();
+
         if (fnft.ownerOf(fnftId) != recipient || fnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
 
         FNFTConfig memory fnftConfig = fnfts[fnftId];
 
-        fnft.burn(fnftId);        
-
-        treasury.transferRedemption(
+        getTreasury().transferRedemption(
             fnftId,
             fnftConfig.redeemableToken,
             recipient,
             fnftConfig.redeemableAmount
         );
+
+        fnft.burnFromOwner(fnftId, recipient); 
 
         delete fnfts[fnftId];
 

@@ -10,23 +10,18 @@ import '@openzeppelin/contracts/security/Pausable.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import '../interfaces/ITokenVault.sol';
 import '../interfaces/IFNFT.sol';
+import './LockAccessControl.sol';
 
 error INVALID_ADDRESS();
 error INVALID_AMOUNT();
 error INVALID_TOKEN();
 error INVALID_RECIPIENT();
 
-contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
+contract HectorRedemptionTreasury is LockAccessControl, Pausable {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /* ======== STORAGE ======== */
-
-    /// @notice setup moderator role
-    bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
-
-    /// @notice Redeem fnft contract
-    IFNFT public fnft;
 
     /// @notice Deposited tokens set
     EnumerableSet.AddressSet private tokensSet;
@@ -35,42 +30,18 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     /* ======== EVENTS ======== */
 
     event Deposited(address indexed who, address indexed token, uint256 amount);
-    event SetModerator(address _moderator, bool _approved);
     event SendRedemption(address indexed who, uint256 fnftid, uint256 amount);
 
     /* ======== INITIALIZATION ======== */
-    constructor(address multisigWallet, address moderator, address _redeemFNFT) {
-       if (multisigWallet == address(0)) revert INVALID_ADDRESS();
-       if (moderator == address(0)) revert INVALID_ADDRESS();
-       if (_redeemFNFT == address(0)) revert INVALID_ADDRESS();
-
-        fnft = IFNFT(_redeemFNFT);
-
-        _transferOwnership(multisigWallet);
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-		_setupRole(MODERATOR_ROLE, msg.sender);
-        _setupRole(MODERATOR_ROLE, moderator);
-    }
+    constructor(address provider) LockAccessControl(provider) {}
 
     /* ======== POLICY FUNCTIONS ======== */
 
-    /**
-        @notice add moderator 
-        @param _moderator new/existing wallet address
-		@param _approved active/inactive flag
-     */
-    function setModerator(address _moderator, bool _approved) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		if (_moderator == address(0)) revert INVALID_ADDRESS();
-		if (_approved) grantRole(MODERATOR_ROLE, _moderator);
-		else revokeRole(MODERATOR_ROLE, _moderator);
-		emit SetModerator(_moderator, _approved);
-	}
-
-    function pause() external onlyRole(MODERATOR_ROLE) {
+    function pause() external onlyModerator {
         _pause();
     }
 
-    function unpause() external onlyRole(MODERATOR_ROLE) {
+    function unpause() external onlyModerator {
         _unpause();
     }
 
@@ -81,7 +52,9 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
         @param _to  recipient address
         @param _amount  amount to transfer
      */
-    function transferRedemption(uint256 rnftid, address _token, address _to, uint256 _amount) external onlyRole(MODERATOR_ROLE) {        
+    function transferRedemption(uint256 rnftid, address _token, address _to, uint256 _amount) external onlyModerator {   
+        IFNFT fnft = getFNFT();
+
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_to == address(0)) revert INVALID_ADDRESS();     
         if (!tokensSet.contains(_token)) revert INVALID_TOKEN();
@@ -98,7 +71,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
     /**
         @notice withdraw all tokens
      */    
-    function withdrawAll() external onlyRole(MODERATOR_ROLE) {
+    function withdrawAll() external onlyModerator {
         uint256 length = tokensSet.length();
 
         for (uint256 i = 0; i < length; i++) {
@@ -118,7 +91,7 @@ contract HectorRedemptionTreasury is Ownable, Pausable, AccessControl {
         @param _token  token address
         @param _amount  amount to deposit
      */
-    function deposit(address _token, uint256 _amount) external whenNotPaused onlyRole(MODERATOR_ROLE) {
+    function deposit(address _token, uint256 _amount) external whenNotPaused onlyModerator {
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_amount == 0) revert INVALID_AMOUNT();
 
