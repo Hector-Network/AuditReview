@@ -1,8 +1,8 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { DeployFunction } from 'hardhat-deploy/types';
-import { waitSeconds } from '../helper/helpers';
-import { deployHectorRegistrationContract } from './../helper/contracts';
-import { HectorRegistration } from './../types';
+import { waitSeconds } from '../../helper/helpers';
+import { deployHectorRegistrationContract } from '../../helper/contracts';
+import { HectorRegistration } from '../../types';
 import { ethers } from 'hardhat';
 import { constants } from 'ethers';
 
@@ -12,8 +12,8 @@ const deployHectorRegistration: DeployFunction = async (
   const { deployments, ethers } = hre;
   const { deploy } = deployments;
   const [deployer] = await ethers.getSigners();
-  const multisig = '0xBF014a15198EDcFcb2921dE7099BF256DB31c4ba';
-  const moderator = '0xBF014a15198EDcFcb2921dE7099BF256DB31c4ba';
+  const multisig = '0x068258e9615415926e8487ce30e3b1006d22f021';
+  const moderator = '0x068258e9615415926e8487ce30e3b1006d22f021';
 
   /// Token Address: FTM Testnet
   const hectorTokenAddress = '0x55639b1833Ddc160c18cA60f5d0eC9286201f525';

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import {ERC20} from '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
@@ -29,15 +28,15 @@ contract HectorRedemption is
     IERC721Receiver
 {
     using SafeERC20 for IERC20;
-    using EnumerableSet for EnumerableSet.AddressSet;
 
     /* ======== STORAGE ======== */
 
     /// @notice Get whitelist tokens
     IRegistrationWallet public registrationWallet;
 
-    EnumerableSet.AddressSet private eligibleTokens;
+    address[] public eligibleTokens;
     uint256[] depositedFNFTs;
+    address constant private  BURN_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice Hector fnft contract 
     //IFNFT public fnft = IFNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
@@ -56,33 +55,11 @@ contract HectorRedemption is
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
-        address[] memory _tokens = registrationWallet.getAllTokens();
-
-        _convertArrayToEnumerableSet(_tokens);
+        eligibleTokens = registrationWallet.getAllTokens();
     }
 
     /* ======== PRIVATE ======== */
-    /**
-        @notice add eligible token
-        @param _token  wallet address
-     */
-    function _addEligibleToken(address _token) private {
-        //check for duplicate
-        if (_token == address(0) || eligibleTokens.contains(_token)) revert INVALID_WALLET();
-
-        eligibleTokens.add(_token);
-
-		emit AddEligibleToken(_token);
-	}
-
-
-    function _convertArrayToEnumerableSet(address[] memory _tokens) private {
-        uint256 length = _tokens.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            eligibleTokens.add(_tokens[i]);
-        }
-    }
+   
 
     /* ======== POLICY FUNCTIONS ======== */
 
@@ -101,7 +78,7 @@ contract HectorRedemption is
      */
     function deposit(address token, uint256 amount) external {         
         if (amount <= 0) revert INVALID_AMOUNT();
-        if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
+        if (!registrationWallet.isRegisteredToken(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
 
         //get whitelist token
@@ -133,13 +110,12 @@ contract HectorRedemption is
         @notice burn all tokens from contract
      */
     function burnTokens() external onlyModerator {    
-        uint256 length = eligibleTokens.length();
+        uint256 length = eligibleTokens.length;
 
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens.at(i);
+            address token = eligibleTokens[i];
             uint256 balance = IERC20(token).balanceOf(address(this));
-            //send token to address(0) to burn
-            ERC20(token).burn(balance);
+            IERC20(token).safeTransfer(BURN_ADDRESS, balance);
 
             emit BurnToken(token);
         }
@@ -163,17 +139,17 @@ contract HectorRedemption is
         @notice withdraw all tokens
      */    
     function withdrawAllTokens() external onlyModerator {
-        uint256 length = eligibleTokens.length();
+        uint256 length = eligibleTokens.length;
 
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens.at(0);
+            address token = eligibleTokens[i];
             uint256 balance = IERC20(token).balanceOf(address(this));
 
             if (balance > 0) {
                 IERC20(token).safeTransfer(owner(), balance);
             }
 
-            eligibleTokens.remove(token);
+            delete eligibleTokens[i];
         }
     }
 
@@ -192,11 +168,6 @@ contract HectorRedemption is
 
     /* ======== VIEW FUNCTIONS ======== */
 
-    /// @notice Returns all eligible tokens
-    function getAllTokens() external view returns (address[] memory) {
-        return eligibleTokens.values();
-    }
-
     /// @notice Returns the length of eligible tokens
 	function getDepositedFNFTCount() external view returns (uint256) {
 		return depositedFNFTs.length;
@@ -206,10 +177,10 @@ contract HectorRedemption is
     function getTotalBalance() external view returns (TokenBalance[] memory) {
         TokenBalance[] memory tokenBalances;
 
-        uint256 length = eligibleTokens.length();
+        uint256 length = eligibleTokens.length;
         
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens.at(i);
+            address token = eligibleTokens[i];
             uint256 balance = IERC20(token).balanceOf(address(this));
             tokenBalances[i] = TokenBalance(token, balance);
         }

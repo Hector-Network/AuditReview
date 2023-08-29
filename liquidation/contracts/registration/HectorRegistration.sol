@@ -249,6 +249,15 @@ contract HectorRegistration is
         return eligibleTokens.values();
     }
 
+    /**
+        @notice return if token is registered
+        @param _tokenAddress address
+        @return bool
+     */
+	function isRegisteredToken(address _tokenAddress) external view returns (bool) {
+		return eligibleTokens.contains(_tokenAddress);
+	}
+
      /// @notice Returns all wallet addresses
     function getAllWallets() external view returns (address[] memory) {
         return registeredWallets.values();

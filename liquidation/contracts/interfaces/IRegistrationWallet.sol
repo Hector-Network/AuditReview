@@ -32,4 +32,7 @@ interface IRegistrationWallet {
 
     /// @notice return if wallet is registered
     function isRegisteredWallet(address _walletAddress) external view returns (bool);
+
+    /// @notice return if token is registered
+    function isRegisteredToken(address _tokenAddress) external view returns (bool);
 }

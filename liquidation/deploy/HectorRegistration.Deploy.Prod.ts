@@ -12,10 +12,10 @@ const deployHectorRegistration: DeployFunction = async (
   const { deployments, ethers } = hre;
   const { deploy } = deployments;
   const [deployer] = await ethers.getSigners();
-  const multisig = '0xBF014a15198EDcFcb2921dE7099BF256DB31c4ba';
-  const moderator = '0xBF014a15198EDcFcb2921dE7099BF256DB31c4ba';
+  const multisig = '0x677d6EC74fA352D4Ef9B1886F6155384aCD70D90';
+  const moderator = '0x068258e9615415926e8487ce30e3b1006d22f021';
 
-  /// Token Address: FTM Testnet
+  /// Token Address: FTM Mainnet
   const hec = '0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0';
   //https://ftmscan.com/address/0x75bdeF24285013387A47775828bEC90b91Ca9a5F#readContract
   const sHec = '0x75bdeF24285013387A47775828bEC90b91Ca9a5F';
@@ -42,6 +42,22 @@ const deployHectorRegistration: DeployFunction = async (
     tor_wftm_lp,
   ];
   const args = [multisig, moderator, eligibleTokens, fnftAddress];
+
+  if (hre.network.name !== 'localhost' && hre.network.name !== 'hardhat') {
+    await waitSeconds(10);
+    console.log('=====> Verifing ....');
+    try {
+      await hre.run('verify:verify', {
+        address: '0x26834b17926A3F5C461B16766002Aa8c854eDC1D',
+        contract:
+          'contracts/registration/HectorRegistration.sol:HectorRegistration',
+        constructorArguments: args,
+      });
+    } catch (_) {}
+    await waitSeconds(10);
+  }
+
+  return;
 
   const hectorRegistration = await deploy('HectorRegistration', {
     from: deployer.address,
