@@ -71,6 +71,11 @@ const deployHectorRedemption: DeployFunction = async (
     treasury.address
   );
 
+  await waitSeconds(10);
+
+  //add vault as a moderator
+  await lockAddressRegistry.setModerator(tokenVault.address, true);
+
   if (hre.network.name !== 'localhost' && hre.network.name !== 'hardhat') {
     await waitSeconds(10);
     console.log('=====> Verifing ....');
