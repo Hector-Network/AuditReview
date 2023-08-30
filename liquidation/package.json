@@ -12,9 +12,13 @@
     "deploy:kovan": "hardhat deploy --network kovan",
     "deploy:rinkeby": "hardhat deploy --network rinkeby",
     "deploy:ftm": "hardhat deploy --network ftm",
+    "test:registration": "hardhat test test/WalletRegistration.test.ts",
+    "test:redemption": "hardhat test test/WalletRedemption.test.ts",
     "deployRegistration:ftm": "hardhat deploy --tags HectorRegistrationProd --network ftm",
     "deployRedemption:ftm": "hardhat deploy --tags HectorRedemptionProdFTM --network ftm",
-    "deployRedemption:eth": "hardhat deploy --tags HectorRedemptionProdFTM --network eth",
+    "deployRedemption:eth": "hardhat deploy --tags HectorRedemptionProdETH --network mainnet",
+    "deployRedemption:goerli": "hardhat deploy --tags HectorRedemptionProdGoerli --network goerli",
+    "deployRedemption:testftm": "hardhat deploy --tags HectorRedemptionTest --network ftmtest",
     "deploy:ftmtest": "hardhat deploy --network ftmtest"
   },
   "devDependencies": {
