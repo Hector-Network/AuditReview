@@ -55,7 +55,6 @@ contract HectorRedemption is
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
-        eligibleTokens = registrationWallet.getAllTokens();
     }
 
     /* ======== PRIVATE ======== */
@@ -109,7 +108,8 @@ contract HectorRedemption is
     /**
         @notice burn all tokens from contract
      */
-    function burnTokens() external onlyModerator {    
+    function burnTokens() external onlyModerator { 
+        eligibleTokens = registrationWallet.getAllTokens();   
         uint256 length = eligibleTokens.length;
 
         for (uint256 i = 0; i < length; i++) {

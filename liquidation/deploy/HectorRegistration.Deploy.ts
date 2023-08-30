@@ -45,5 +45,5 @@ const deployHectorRegistration: DeployFunction = async (
 };
 
 export default deployHectorRegistration;
-deployHectorRegistration.tags = ['HectorRegistration'];
+deployHectorRegistration.tags = ['HectorRegistrationTest'];
 deployHectorRegistration.dependencies = [];

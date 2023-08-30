@@ -43,22 +43,6 @@ const deployHectorRegistration: DeployFunction = async (
   ];
   const args = [multisig, moderator, eligibleTokens, fnftAddress];
 
-  if (hre.network.name !== 'localhost' && hre.network.name !== 'hardhat') {
-    await waitSeconds(10);
-    console.log('=====> Verifing ....');
-    try {
-      await hre.run('verify:verify', {
-        address: '0x26834b17926A3F5C461B16766002Aa8c854eDC1D',
-        contract:
-          'contracts/registration/HectorRegistration.sol:HectorRegistration',
-        constructorArguments: args,
-      });
-    } catch (_) {}
-    await waitSeconds(10);
-  }
-
-  return;
-
   const hectorRegistration = await deploy('HectorRegistration', {
     from: deployer.address,
     args: args,

@@ -41,7 +41,6 @@ const deployHectorRedemption: DeployFunction = async (
     log: true,
   });
   console.log('Redemption: ', redemption.address);
-  return;
 
   await waitSeconds(10);
 

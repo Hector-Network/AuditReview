@@ -19,7 +19,7 @@ const deployHectorRedemption: DeployFunction = async (
   const { deployments, ethers } = hre;
   const { deploy } = deployments;
   const [deployer] = await ethers.getSigners();
-  const multisig = '0x4bfb33d65f4167EBE190145939479227E7bf2CB0'; //eth multisig
+  const multisig = '0x068258e9615415926e8487ce30e3b1006d22f021'; //eth multisig
   const moderator = '0x068258e9615415926e8487ce30e3b1006d22f021';
 
   // Deploy LockAddressRegistry
@@ -122,5 +122,5 @@ const deployHectorRedemption: DeployFunction = async (
 };
 
 export default deployHectorRedemption;
-deployHectorRedemption.tags = ['HectorRedemptionProdETH'];
+deployHectorRedemption.tags = ['HectorRedemptionProdGoerli'];
 deployHectorRedemption.dependencies = [];
