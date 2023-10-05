@@ -18,6 +18,7 @@
     "deployRedemption:ftm": "hardhat deploy --tags HectorRedemptionProdFTM --network ftm",
     "deployRedemption:eth": "hardhat deploy --tags HectorRedemptionProdETH --network mainnet",
     "deployRedemption:goerli": "hardhat deploy --tags HectorRedemptionProdGoerli --network goerli",
+    "RedemptionGenerateWallets:goerli": "hardhat deploy --tags RedemptionGenerateWallets --network goerli",
     "deployRedemption:testftm": "hardhat deploy --tags HectorRedemptionTest --network ftmtest",
     "deploy:ftmtest": "hardhat deploy --network ftmtest"
   },
