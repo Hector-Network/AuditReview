@@ -16,6 +16,7 @@
     "test:redemption": "hardhat test test/WalletRedemption.test.ts",
     "deployRegistration:ftm": "hardhat deploy --tags HectorRegistrationProd --network ftm",
     "deployRedemption:ftm": "hardhat deploy --tags HectorRedemptionProdFTM --network ftm",
+    "deployRedemption:bsc": "hardhat deploy --tags HectorRedemptionProdFTM --network bsc",
     "deployRedemption:eth": "hardhat deploy --tags HectorRedemptionProdETH --network mainnet",
     "deployRedemption:goerli": "hardhat deploy --tags HectorRedemptionProdGoerli --network goerli",
     "RedemptionGenerateWallets:goerli": "hardhat deploy --tags RedemptionGenerateWallets --network goerli",
