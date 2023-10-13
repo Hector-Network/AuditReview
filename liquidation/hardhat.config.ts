@@ -86,6 +86,14 @@ export default {
       chainId: 4002,
       saveDeployments: true,
     },
+    bsc: {
+      url: process.env.BSCMAIN_NET_API_URL,
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 56,
+      saveDeployments: true,
+      gasPrice: 'auto',
+      allowUnlimitedContractSize: true,
+    },
   },
   paths: {
     deploy: 'deploy',
