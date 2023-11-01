@@ -125,10 +125,6 @@ contract HectorRegistration is
             blacklistedWallets.contains(walletAddress)
             ) revert INVALID_WALLET();
 
-        uint256 balanceOfWallet = _getWalletBalance(walletAddress);
-
-        if (balanceOfWallet == 0) revert INVALID_BALANCE();
-
         registeredWallets.add(walletAddress);
 
         emit AddRegisteredWallet(
