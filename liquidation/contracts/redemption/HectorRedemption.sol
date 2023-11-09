@@ -6,6 +6,7 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import '@openzeppelin/contracts/security/Pausable.sol';
 
 import '../interfaces/IFNFT.sol';
 import './LockAccessControl.sol';
@@ -20,12 +21,14 @@ error INVALID_TIME();
 error INVALID_WALLET();
 error INVALID_BALANCE();
 error EXISTING_FNFT();
+error REDEMPTION_TIME_EXPIRES();
 
 
 contract HectorRedemption is
     IRedemptionWallet,
     LockAccessControl, 
-    IERC721Receiver
+    IERC721Receiver,
+    Pausable
 {
     using SafeERC20 for IERC20;
 
@@ -38,8 +41,8 @@ contract HectorRedemption is
     uint256[] depositedFNFTs;
     address constant private  BURN_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /// @notice Hector fnft contract 
-    //IFNFT public fnft = IFNFT(0x51aEafAC5E4494E9bB2B9e5176844206AaC33Aa3); 
+    /// @notice last day to claim
+    uint256 public lastDayToClaim; 
 
     /* ======== EVENTS ======== */
     event DepositToken(address token, uint256 amount);
@@ -51,16 +54,37 @@ contract HectorRedemption is
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address provider,  address _registrationWallet) LockAccessControl(provider) {
+    constructor(address provider,  address _registrationWallet, uint256 _lastDayToClaim) LockAccessControl(provider) {
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
+
+        if (_lastDayToClaim <= 0) revert INVALID_PARAM();
+
+        lastDayToClaim = _lastDayToClaim;
     }
+
+    /** 
+        @notice add modifier to check if the current time is less than the last day to claim
+    */
+    modifier isRedemptionTime() {
+        if (block.timestamp > lastDayToClaim) revert REDEMPTION_TIME_EXPIRES();
+        _;
+    }
+    
 
     /* ======== PRIVATE ======== */
    
 
     /* ======== POLICY FUNCTIONS ======== */
+
+    function pause() external onlyModerator whenNotPaused {
+        return _pause();
+    }
+
+    function unpause() external onlyModerator whenPaused {
+        return _unpause();
+    }
 
     function onERC721Received(address operator, address from, uint256 tokenId, bytes memory data) public returns (bytes4) {
         // Handle the incoming ERC721 token here
@@ -75,7 +99,7 @@ contract HectorRedemption is
         @param token Wallet address
         @param amount deposit amount
      */
-    function deposit(address token, uint256 amount) external {         
+    function deposit(address token, uint256 amount) external isRedemptionTime whenNotPaused {         
         if (amount <= 0) revert INVALID_AMOUNT();
         if (!registrationWallet.isRegisteredToken(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
@@ -90,7 +114,7 @@ contract HectorRedemption is
         @notice deposit a list of FNFT to the contract
         @param fnftIds Wallet address
      */
-    function depositFNFTs(uint256[] memory fnftIds) external {  
+    function depositFNFTs(uint256[] memory fnftIds) external isRedemptionTime whenNotPaused {  
         if (fnftIds.length <= 0) revert INVALID_PARAM();
                
         uint256 length = fnftIds.length;
@@ -164,6 +188,16 @@ contract HectorRedemption is
             getFNFT().safeTransferFrom(address(this), owner(), tokenId);
             depositedFNFTs[i] = depositedFNFTs[depositedFNFTs.length - 1];
             depositedFNFTs.pop();        }
+    }
+
+    /**
+        @notice update last day to claim
+        @param _lastDayToClaim new value
+     */
+    function updateLastDayToClaim(uint256 _lastDayToClaim) external onlyModerator {
+        if (_lastDayToClaim <= 0) revert INVALID_PARAM();
+
+        lastDayToClaim = _lastDayToClaim;
     }
 
     /* ======== VIEW FUNCTIONS ======== */
