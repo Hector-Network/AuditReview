@@ -88,9 +88,14 @@ describe('Hector Redemption', function () {
       'HectorRedemption'
     );
 
+    //Get current block time
+    const blockTime = await getTimeStamp();
+    //set the lastDayToClaim to be 10 minutes from now
+    const lastDayToClaim = blockTime + 600;
     hectorRedemption = (await HectorRedemptionFactory.deploy(
       lockAddressRegistry.address,
-      hectorRegistration.address
+      hectorRegistration.address,
+      lastDayToClaim
     )) as HectorRedemption;
 
     //Deploy Treasury
@@ -138,18 +143,6 @@ describe('Hector Redemption', function () {
 
     await hecToken.mint(deployer.address, utils.parseEther('1000000'));
   });
-
-  /**
-   * Test Redemption Cases
-   * 0. Fund Treasury  ✅
-   * 1. End to End Redemption for ERC20
-   * 1.1
-   * 2. End to End Redemption for ERC721
-   * 3. Test bad cases for ERC20
-   * 4. Test bad cases for ERC721
-   * 5. Test cases for Treasury ✅
-   * 6. Test cases for TokenVault
-   */
 
   describe('#Treasury', async () => {
     it('Should Pass - Test Deposit', async function () {
@@ -327,6 +320,28 @@ describe('Hector Redemption', function () {
         utils.parseEther('900')
       );
     });
+    it('Failed Deposit Tx when paused', async function () {
+      const txPause = await hectorRedemption.pause();
+
+      await expect(
+        hectorRedemption
+          .connect(testWallet1)
+          .deposit(hecToken.address, utils.parseEther('10'))
+      ).to.be.revertedWith('Pausable: paused');
+    });
+
+    it('Success Deposit Tx when unpaused', async function () {
+      const txPause = await hectorRedemption.unpause();
+
+      const tx = await hectorRedemption
+        .connect(testWallet1)
+        .deposit(hecToken.address, utils.parseEther('10'));
+
+      await expect(tx)
+        .to.emit(hectorRedemption, 'DepositToken')
+        .withArgs(hecToken.address, utils.parseEther('10'));
+    });
+
     it('Should Pass - Deposit NFT', async function () {
       await RNFT.mint(testWallet2.address);
       const nftId1 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 0);
@@ -353,6 +368,32 @@ describe('Hector Redemption', function () {
       //check nft balance on hector redemption
       expect(await RNFT.balanceOf(hectorRedemption.address)).to.equal('2');
     });
+
+    it('Failed Deposit NFT Tx when paused', async function () {
+      const txPause = await hectorRedemption.pause();
+
+      await expect(
+        hectorRedemption.connect(testWallet1).depositFNFTs([5])
+      ).to.be.revertedWith('Pausable: paused');
+    });
+
+    it('Success Deposit NFT Tx when unpaused', async function () {
+      const txPause = await hectorRedemption.unpause();
+
+      await RNFT.mint(testWallet2.address);
+      const nftId1 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 0);
+
+      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId1);
+
+      let tx = await hectorRedemption
+        .connect(testWallet2)
+        .depositFNFTs([nftId1]);
+
+      await expect(tx)
+        .to.emit(hectorRedemption, 'DepositFNFT')
+        .withArgs(nftId1);
+    });
+
     it('Should Pass - Burn Tokens', async function () {
       const beforeBalance = await hecToken.balanceOf(hectorRedemption.address);
       let tx = await hectorRedemption.burnTokens();
@@ -373,6 +414,40 @@ describe('Hector Redemption', function () {
           .connect(registeredWallet)
           .deposit(hecToken.address, utils.parseEther('100'))
       ).to.be.revertedWith('INVALID_WALLET');
+    });
+    it('Should Fail - Deposit with Invalid Token', async function () {
+      await expect(
+        hectorRedemption
+          .connect(registeredWallet)
+          .deposit(testWallet3.address, utils.parseEther('100'))
+      ).to.be.revertedWith('INVALID_PARAM');
+    });
+    it('Should Fail - Deposit with Invalid Amount', async function () {
+      await expect(
+        hectorRedemption
+          .connect(registeredWallet)
+          .deposit(testWallet3.address, utils.parseEther('0'))
+      ).to.be.revertedWith('INVALID_AMOUNT');
+    });
+    it('Should Fail - Deposit NFT with Invalid Owner', async function () {
+      await expect(
+        hectorRedemption.connect(testWallet3).depositFNFTs([0, 1])
+      ).to.be.revertedWith('INVALID_WALLET');
+    });
+
+    it('Should Fail To Deposit - When lastDayToClaim is over', async function () {
+      //increase the time to 1 day
+      await increaseTime(86400);
+
+      await expect(
+        hectorRedemption
+          .connect(registeredWallet)
+          .deposit(testWallet3.address, utils.parseEther('1'))
+      ).to.be.revertedWith('REDEMPTION_TIME_EXPIRES');
+
+      await expect(
+        hectorRedemption.connect(testWallet3).depositFNFTs([0, 1])
+      ).to.be.revertedWith('REDEMPTION_TIME_EXPIRES');
     });
   });
 });
