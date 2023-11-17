@@ -31,6 +31,7 @@ contract HectorRedemption is
     Pausable
 {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /* ======== STORAGE ======== */
 
@@ -40,6 +41,8 @@ contract HectorRedemption is
     address[] public eligibleTokens;
     uint256[] depositedFNFTs;
     address constant private  BURN_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    EnumerableSet.AddressSet private redeemedWallets;
 
     /// @notice last day to claim
     uint256 public lastDayToClaim; 
@@ -104,6 +107,9 @@ contract HectorRedemption is
         if (!registrationWallet.isRegisteredToken(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
 
+        if (!redeemedWallets.contains(msg.sender)) 
+            redeemedWallets.add(msg.sender);
+
         //get whitelist token
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -118,6 +124,9 @@ contract HectorRedemption is
         if (fnftIds.length <= 0) revert INVALID_PARAM();
                
         uint256 length = fnftIds.length;
+
+        if (!redeemedWallets.contains(msg.sender)) 
+            redeemedWallets.add(msg.sender);
 
         for (uint256 i = 0; i < length; i++) {
             uint256 tokenId = fnftIds[i];
@@ -221,5 +230,45 @@ contract HectorRedemption is
 
         return tokenBalances;
     }
+
+      /// @notice Returns all redeemed wallet addresses
+    function getAllWallets() external view returns (address[] memory) {
+        return redeemedWallets.values();
+    }
+
+     /// @notice Returns all redeemed wallet addresses from a range
+    function getWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
+        uint256 length = redeemedWallets.length();
+        if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
+
+        address[] memory _wallets = new address[](toIndex - fromIndex);
+        uint256 index = 0;
+
+        for (uint256 i = fromIndex; i < toIndex; i++) {
+            _wallets[index] = redeemedWallets.at(i);
+            index++;
+        }
+
+        return _wallets;
+    }
+
+      /// @notice Returns redeemed wallet at index
+    function getAllWalletAtIndex(uint16 index) external view returns (address) {
+        return redeemedWallets.at(index);
+    }
+
+    /// @notice Returns the count of redeemed wallets
+	function getRedeemedWalletsCount() external view returns (uint256) {
+		return redeemedWallets.length();
+	}
+
+    /**
+        @notice return if wallet has redeemed
+        @param _walletAddress address
+        @return bool
+     */
+	function isRedeemedWallet(address _walletAddress) external view returns (bool) {
+		return redeemedWallets.contains(_walletAddress);
+	}
 
 }
