@@ -319,6 +319,12 @@ describe('Hector Redemption', function () {
       expect(await hecToken.balanceOf(testWallet1.address)).to.equal(
         utils.parseEther('900')
       );
+
+      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('1');
+
+      expect(
+        await hectorRedemption.isRedeemedWallet(testWallet1.address)
+      ).to.equal(true);
     });
     it('Failed Deposit Tx when paused', async function () {
       const txPause = await hectorRedemption.pause();
@@ -340,6 +346,8 @@ describe('Hector Redemption', function () {
       await expect(tx)
         .to.emit(hectorRedemption, 'DepositToken')
         .withArgs(hecToken.address, utils.parseEther('10'));
+
+      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('1');
     });
 
     it('Should Pass - Deposit NFT', async function () {
@@ -361,6 +369,17 @@ describe('Hector Redemption', function () {
       let tx = await hectorRedemption
         .connect(testWallet2)
         .depositFNFTs([nftId1, nftId3]);
+
+      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('2');
+
+      //check matching deposit wallets
+      expect(
+        await hectorRedemption.isRedeemedWallet(testWallet2.address)
+      ).to.equal(true);
+
+      expect(await hectorRedemption.getAllWalletAtIndex(1)).to.equal(
+        testWallet2.address
+      );
 
       //Check if the NFTs are transferred to the vault
       expect(await RNFT.balanceOf(testWallet2.address)).to.equal('1');
@@ -448,6 +467,66 @@ describe('Hector Redemption', function () {
       await expect(
         hectorRedemption.connect(testWallet3).depositFNFTs([0, 1])
       ).to.be.revertedWith('REDEMPTION_TIME_EXPIRES');
+    });
+  });
+
+  describe('#Token Vault - Distribute Leftover', async () => {
+    it('Should Pass - Distribute all remaining funds to registered wallets', async function () {
+      //1. Fund the Treasury contract - done
+      //get balance of hecToken in treasury contract
+      let treasuryBalance = await hecToken.balanceOf(treasury.address);
+      //2. Generate test wallets
+      const registeredWallets = [];
+      const totalWallets = await hectorRegistration.getRegisteredWalletsCount();
+      //console.log('totalWallets', totalWallets.toString());
+
+      if (totalWallets.eq(0)) {
+        await hectorRegistration.registerWallet(testWallet1.address);
+        await hectorRegistration.registerWallet(testWallet2.address);
+        await hectorRegistration.registerWallet(testWallet3.address);
+      }
+
+      for (let i = 0; i < Number(totalWallets); i++) {
+        const wallet = await hectorRegistration.getAllWalletAtIndex(i);
+
+        const balanceBefore = await hecToken.balanceOf(wallet);
+        let nftBalance = await RNFT.balanceOf(wallet);
+
+        const walletInfo = {
+          walletAddress: wallet,
+          currentBalance: balanceBefore.toString(),
+        };
+        registeredWallets.push(walletInfo);
+
+        //3. Mint NFT
+        const redeemAmt: BigNumber = treasuryBalance.div(2);
+
+        let fnftConfig = {
+          eligibleTORAmount: 100,
+          eligibleHECAmount: 100,
+          redeemableToken: hecToken.address,
+          redeemableAmount: redeemAmt,
+        };
+
+        let tx = await vaultRNFT.connect(moderator).mint(wallet, fnftConfig);
+        nftBalance = await RNFT.balanceOf(wallet);
+
+        const nftId1 = await RNFT.tokenOfOwnerByIndex(
+          wallet,
+          nftBalance.sub(1)
+        );
+
+        //4. Call Withdraw
+        let tx2 = await vaultRNFT.withdraw(wallet, nftId1);
+
+        const balanceAfter = await hecToken.balanceOf(wallet);
+
+        expect(await hecToken.balanceOf(wallet)).to.equal(
+          balanceBefore.add(redeemAmt)
+        );
+      }
+      treasuryBalance = await hecToken.balanceOf(treasury.address);
+      expect(treasuryBalance).to.equal(0);
     });
   });
 });
