@@ -42,7 +42,12 @@ contract HectorRedemption is
     uint256[] depositedFNFTs;
     address constant private  BURN_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    /// @notice A list of wallet addresses tracking who redeems tokens
     EnumerableSet.AddressSet private redeemedWallets;
+
+    /// @notice A list of wallet addresses tracking who receives leftover after redemption
+    EnumerableSet.AddressSet private leftOverDistributedWallets;
+
 
     /// @notice last day to claim
     uint256 public lastDayToClaim; 
@@ -200,6 +205,27 @@ contract HectorRedemption is
     }
 
     /**
+        @notice keeps track of wallets receving leftover from treasury
+        @param wallet Wallet address
+     */
+    function addLeftOverWallet(address wallet) external onlyModerator {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        if (!leftOverDistributedWallets.contains(wallet)) 
+            leftOverDistributedWallets.add(wallet);
+    }
+
+    /**
+        @notice remove wallet from leftOverDistributedWallets
+        @param wallet Wallet address
+     */
+    function removeLeftOverWallet(address wallet) external onlyModerator {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        if (leftOverDistributedWallets.contains(wallet)) 
+            leftOverDistributedWallets.remove(wallet);
+
+    }
+
+    /**
         @notice update last day to claim
         @param _lastDayToClaim new value
      */
@@ -232,12 +258,17 @@ contract HectorRedemption is
     }
 
       /// @notice Returns all redeemed wallet addresses
-    function getAllWallets() external view returns (address[] memory) {
+    function getAllRedeemedWallets() external view returns (address[] memory) {
         return redeemedWallets.values();
     }
 
+      /// @notice Returns all leftover wallet addresses
+    function getAllLeftoverWallets() external view returns (address[] memory) {
+        return leftOverDistributedWallets.values();
+    }
+
      /// @notice Returns all redeemed wallet addresses from a range
-    function getWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
+    function getRedeemedWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
         uint256 length = redeemedWallets.length();
         if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
 
@@ -252,14 +283,40 @@ contract HectorRedemption is
         return _wallets;
     }
 
-      /// @notice Returns redeemed wallet at index
-    function getAllWalletAtIndex(uint16 index) external view returns (address) {
+     /// @notice Returns all leftover wallet addresses from a range
+    function getLeftOverWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
+        uint256 length = leftOverDistributedWallets.length();
+        if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
+
+        address[] memory _wallets = new address[](toIndex - fromIndex);
+        uint256 index = 0;
+
+        for (uint256 i = fromIndex; i < toIndex; i++) {
+            _wallets[index] = leftOverDistributedWallets.at(i);
+            index++;
+        }
+
+        return _wallets;
+    }
+
+    /// @notice Returns redeemed wallet at index
+    function getRedeemedWalletAtIndex(uint16 index) external view returns (address) {
         return redeemedWallets.at(index);
+    }
+
+    /// @notice Returns leftover wallet at index
+    function getLeftOverWalletAtIndex(uint16 index) external view returns (address) {
+        return leftOverDistributedWallets.at(index);
     }
 
     /// @notice Returns the count of redeemed wallets
 	function getRedeemedWalletsCount() external view returns (uint256) {
 		return redeemedWallets.length();
+	}
+
+    /// @notice Returns the count of leftover wallets
+	function getLeftOverWalletsCount() external view returns (uint256) {
+		return leftOverDistributedWallets.length();
 	}
 
     /**
@@ -269,6 +326,16 @@ contract HectorRedemption is
      */
 	function isRedeemedWallet(address _walletAddress) external view returns (bool) {
 		return redeemedWallets.contains(_walletAddress);
+	}
+
+
+    /**
+        @notice return if wallet belongs to a leftover list
+        @param _walletAddress address
+        @return bool
+     */
+    function isLeftOverWallet(address _walletAddress) external view returns (bool) {
+		return leftOverDistributedWallets.contains(_walletAddress);
 	}
 
 }
