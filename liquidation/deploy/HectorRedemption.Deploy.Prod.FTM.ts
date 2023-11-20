@@ -13,16 +13,18 @@ import {
 import { ethers } from 'hardhat';
 import { constants } from 'ethers';
 
+//yarn deployRedemption:ftm
 const deployHectorRedemption: DeployFunction = async (
   hre: HardhatRuntimeEnvironment
 ) => {
   const { deployments, ethers } = hre;
   const { deploy } = deployments;
   const [deployer] = await ethers.getSigners();
-  const multisig = '0x068258e9615415926e8487ce30e3b1006d22f021';
-  const moderator = '0x068258e9615415926e8487ce30e3b1006d22f021';
+  const multisig = '0x4646ea4459cc38498a919B42f05ec6aB09aE267f';
+  const moderator = '0x4646ea4459cc38498a919B42f05ec6aB09aE267f';
 
-  const hectorRegistration = '0x26834b17926A3F5C461B16766002Aa8c854eDC1D';
+  //FTM Production
+  const hectorRegistration = '0x4b3Cf1639346dD953c173Bb3faB1B994eD9AD843';
 
   // Deploy LockAddressRegistry
   const lockAccessRegistryFactory = await ethers.getContractFactory(
@@ -35,9 +37,11 @@ const deployHectorRedemption: DeployFunction = async (
 
   await waitSeconds(10);
 
+  const lastDayToClaim = 1709251199000; //  Thursday, February 29, 2024 11:59:59 PM
+
   const redemption = await deploy('HectorRedemption', {
     from: deployer.address,
-    args: [lockAddressRegistry.address, hectorRegistration],
+    args: [lockAddressRegistry.address, hectorRegistration, lastDayToClaim],
     log: true,
   });
   console.log('Redemption: ', redemption.address);
@@ -61,7 +65,11 @@ const deployHectorRedemption: DeployFunction = async (
       await hre.run('verify:verify', {
         address: redemption.address,
         contract: 'contracts/redemption/HectorRedemption.sol:HectorRedemption',
-        constructorArguments: [lockAddressRegistry.address, hectorRegistration],
+        constructorArguments: [
+          lockAddressRegistry.address,
+          hectorRegistration,
+          lastDayToClaim,
+        ],
       });
     } catch (_) {}
     await waitSeconds(10);
