@@ -108,6 +108,48 @@ contract TokenVault is
         emit RedeemNFTWithdrawn(recipient, fnftId, fnftConfig.redeemableAmount);
     }
 
+    /**
+     * @notice Withdraw a FNFT and redeem the user's tokens
+     * @param recipient The address to receive the FNFT
+     * @param fnftConfig The FNFT configuration
+     */
+    function mintWithdraw(address recipient, FNFTConfig memory fnftConfig)  external
+        whenNotPaused
+        onlyModerator
+        returns (uint256) {
+
+        if (recipient == address(0)) revert INVALID_ADDRESS();
+        if (fnftConfig.redeemableAmount == 0 ||
+            (fnftConfig.eligibleTORAmount == 0 && 
+            fnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
+
+        uint256 fnftId = getFNFT().mint(recipient);
+        fnfts[fnftId] = fnftConfig;
+
+        emit RedeemNFTMinted(
+            recipient,
+            fnftId,
+            fnftConfig.eligibleTORAmount,
+            fnftConfig.eligibleHECAmount, 
+            fnftConfig.redeemableAmount
+        );
+
+        IFNFT fnft = getFNFT();
+
+        getTreasury().transferRedemption(
+            fnftId,
+            fnftConfig.redeemableToken,
+            recipient,
+            fnftConfig.redeemableAmount
+        );
+
+        fnft.burnFromOwner(fnftId, recipient); 
+
+        delete fnfts[fnftId];
+
+        return fnftId;
+    }
+
     ///////////////////////////////////////////////////////
     //                  VIEW FUNCTIONS                   //
     ///////////////////////////////////////////////////////

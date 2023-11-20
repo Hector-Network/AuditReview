@@ -13,6 +13,7 @@ import {
 import { ethers } from 'hardhat';
 import { constants } from 'ethers';
 
+//yarn deployRedemption:eth
 const deployHectorRedemption: DeployFunction = async (
   hre: HardhatRuntimeEnvironment
 ) => {
@@ -20,7 +21,7 @@ const deployHectorRedemption: DeployFunction = async (
   const { deploy } = deployments;
   const [deployer] = await ethers.getSigners();
   const multisig = '0x4bfb33d65f4167EBE190145939479227E7bf2CB0'; //eth multisig
-  const moderator = '0x068258e9615415926e8487ce30e3b1006d22f021';
+  const moderator = '0xdE5E7715AB1d80B65f074B3d201e1FB1CB5aD32a';
 
   // Deploy LockAddressRegistry
   const lockAccessRegistryFactory = await ethers.getContractFactory(

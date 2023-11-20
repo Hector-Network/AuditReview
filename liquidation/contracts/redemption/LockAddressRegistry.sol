@@ -46,7 +46,6 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-		_setupRole(MODERATOR_ROLE, msg.sender);
         _setupRole(MODERATOR_ROLE, moderator);
     }
 

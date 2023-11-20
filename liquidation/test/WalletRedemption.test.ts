@@ -545,5 +545,48 @@ describe('Hector Redemption', function () {
         leftOverWalletCount.sub(1)
       );
     });
+    it('Should Pass - Use mintWithdraw func to distribute', async function () {
+      //1. Fund the Treasury contract - done
+      //get balance of hecToken in treasury contract
+      //mint 100 hec to treasury
+      await hecToken.mint(treasury.address, utils.parseEther('100'));
+      let treasuryBalance = await hecToken.balanceOf(treasury.address);
+      //2. Generate test wallets
+      const registeredWallets = [];
+      const totalWallets: BigNumber =
+        await hectorRedemption.getRedeemedWalletsCount();
+
+      for (let i = 0; i < totalWallets.toNumber(); i++) {
+        const wallet = await hectorRedemption.getRedeemedWalletAtIndex(i);
+
+        const balanceBefore = await hecToken.balanceOf(wallet);
+        let nftBalance = await RNFT.balanceOf(wallet);
+
+        //3. Mint NFT
+        const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
+
+        let fnftConfig = {
+          eligibleTORAmount: 100,
+          eligibleHECAmount: 100,
+          redeemableToken: hecToken.address,
+          redeemableAmount: redeemAmt,
+        };
+
+        let tx = await vaultRNFT
+          .connect(moderator)
+          .mintWithdraw(wallet, fnftConfig);
+
+        const balanceAfter = await hecToken.balanceOf(wallet);
+
+        expect(await hecToken.balanceOf(wallet)).to.equal(
+          balanceBefore.add(redeemAmt)
+        );
+
+        //update leftover list
+        await hectorRedemption.addLeftOverWallet(wallet);
+      }
+      treasuryBalance = await hecToken.balanceOf(treasury.address);
+      expect(treasuryBalance).to.equal(0);
+    });
   });
 });
