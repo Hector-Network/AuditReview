@@ -235,6 +235,16 @@ contract HectorRedemption is
         lastDayToClaim = _lastDayToClaim;
     }
 
+    /**
+        @notice update registration contract
+        @param _registrationWallet new contract address
+     */
+    function updateRegistrationContract(address _registrationWallet) external onlyModerator {
+        if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
+
+        registrationWallet = IRegistrationWallet(_registrationWallet);
+    }
+
     /* ======== VIEW FUNCTIONS ======== */
 
     /// @notice Returns the length of eligible tokens
