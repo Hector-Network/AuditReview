@@ -109,19 +109,57 @@ contract TokenVault is
     }
 
     /**
-     * @notice Withdraw a FNFT and redeem the user's tokens
+     * @notice Mint & Withdraw from one recipient
      * @param recipient The address to receive the FNFT
-     * @param fnftConfig The FNFT configuration
+     * @param redeemAmount The amount to redeem
      */
-    function mintWithdraw(address recipient, FNFTConfig memory fnftConfig)  external
+    function mintWithdraw(address recipient, uint256 redeemAmount)  external
         whenNotPaused
         onlyModerator
         returns (uint256) {
 
+        uint256 fnftId = _mintWithdraw(recipient, redeemAmount);
+        return fnftId;
+    }
+
+    /**
+     * @notice Mint & Withdraw from a list of recipients
+     * @param recipients The address to receive the FNFT
+     * @param amounts amount to be redeemed
+     */
+    function mintWithdraws(address[] memory recipients, uint256[] memory amounts)  external
+        whenNotPaused
+        onlyModerator
+    {
+        uint256 totalRecipients = recipients.length;
+        uint256 totalConfig = amounts.length;
+
+        if (totalRecipients != totalConfig) revert INVALID_PARAM();
+
+        for (uint256 i = 0; i < totalRecipients; i++) {
+            address recipient = recipients[i];
+            uint256 redeemAmount = amounts[i];
+            _mintWithdraw(recipient, redeemAmount);
+        }   
+    }
+
+    /**
+        * @notice Mint & Withdraw from a recipient
+        * @param recipient The address to receive the FNFT
+        * @param redeemAmount The amount to redeem
+     */
+    function _mintWithdraw(address recipient, uint256 redeemAmount)  internal
+        returns (uint256) {
+
         if (recipient == address(0)) revert INVALID_ADDRESS();
-        if (fnftConfig.redeemableAmount == 0 ||
-            (fnftConfig.eligibleTORAmount == 0 && 
-            fnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
+        if (redeemAmount == 0) revert INVALID_AMOUNT();
+
+        FNFTConfig memory fnftConfig = FNFTConfig({
+            eligibleTORAmount: 1,
+            eligibleHECAmount: 1,
+            redeemableAmount: redeemAmount,
+            redeemableToken: getRedeemToken()
+        });
 
         uint256 fnftId = getFNFT().mint(recipient);
         fnfts[fnftId] = fnftConfig;

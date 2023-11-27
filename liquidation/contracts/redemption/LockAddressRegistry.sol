@@ -16,6 +16,7 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
     bytes32 public constant TOKEN_VAULT = 'TOKEN_VAULT';
     bytes32 public constant FNFT = 'FNFT';
     bytes32 public constant TREASURY = 'TREASURY';
+    bytes32 public constant REDEEMABLE_TOKEN = 'REDEEMABLE_TOKEN';
 
     bytes32 public constant MODERATOR_ROLE = keccak256('MODERATOR_ROLE');
 
@@ -31,21 +32,25 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
         address moderator,
         address tokenVault,
         address fnft,
-        address treasury
+        address treasury,
+        address redeemableToken
     ) external override onlyOwner {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (tokenVault == address(0)) revert INVALID_ADDRESS();
         if (fnft == address(0)) revert INVALID_ADDRESS();
         if (treasury == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
+        if (redeemableToken == address(0)) revert INVALID_ADDRESS();
 
         _addresses[ADMIN] = multisigWallet;
         _addresses[TOKEN_VAULT] = tokenVault;
         _addresses[FNFT] = fnft;
         _addresses[TREASURY] = treasury;
+        _addresses[REDEEMABLE_TOKEN] = redeemableToken;
 
         _transferOwnership(multisigWallet);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(MODERATOR_ROLE, msg.sender);
         _setupRole(MODERATOR_ROLE, moderator);
     }
 
@@ -79,6 +84,14 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
 
     function setTreasury(address fnft) external override onlyOwner {
         _addresses[TREASURY] = fnft;
+    }
+
+    function getRedeemToken() external view override returns (address) {
+        return _addresses[REDEEMABLE_TOKEN];
+    }
+
+    function setRedeemToken(address redeemableToken) external override onlyOwner {
+        _addresses[REDEEMABLE_TOKEN] = redeemableToken;
     }
 
     /**
