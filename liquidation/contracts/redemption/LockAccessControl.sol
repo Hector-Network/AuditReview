@@ -45,4 +45,8 @@ contract LockAccessControl is Ownable {
         return IRedemptionTreasury(addressProvider.getTreasury());
     }
 
+    function getRedeemToken() internal view returns (address) {
+        return addressProvider.getRedeemToken();
+    }
+
 }

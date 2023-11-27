@@ -122,7 +122,8 @@ describe('Hector Redemption', function () {
       moderator.address,
       vaultRNFT.address,
       RNFT.address,
-      treasury.address
+      treasury.address,
+      hecToken.address
     );
 
     //add vaultRNFT as a moderator
@@ -545,7 +546,7 @@ describe('Hector Redemption', function () {
         leftOverWalletCount.sub(1)
       );
     });
-    it('Should Pass - Use mintWithdraw func to distribute', async function () {
+    it('Should Pass - Use mintWithdraw func to distribute one wallet', async function () {
       //1. Fund the Treasury contract - done
       //get balance of hecToken in treasury contract
       //mint 100 hec to treasury
@@ -565,22 +566,46 @@ describe('Hector Redemption', function () {
         //3. Mint NFT
         const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
 
-        let fnftConfig = {
-          eligibleTORAmount: 100,
-          eligibleHECAmount: 100,
-          redeemableToken: hecToken.address,
-          redeemableAmount: redeemAmt,
-        };
-
         let tx = await vaultRNFT
           .connect(moderator)
-          .mintWithdraw(wallet, fnftConfig);
+          .mintWithdraw(wallet, redeemAmt);
 
         const balanceAfter = await hecToken.balanceOf(wallet);
 
         expect(await hecToken.balanceOf(wallet)).to.equal(
           balanceBefore.add(redeemAmt)
         );
+
+        //update leftover list
+        await hectorRedemption.addLeftOverWallet(wallet);
+      }
+      treasuryBalance = await hecToken.balanceOf(treasury.address);
+      expect(treasuryBalance).to.equal(0);
+    });
+    it('Should Pass - Use mintWithdraw func to distribute many wallets', async function () {
+      //1. Fund the Treasury contract - done
+      //get balance of hecToken in treasury contract
+      //mint 100 hec to treasury
+      await hecToken.mint(treasury.address, utils.parseEther('100'));
+      let treasuryBalance = await hecToken.balanceOf(treasury.address);
+      //2. Generate test wallets
+      const registeredWallets = [];
+      const totalWallets: BigNumber =
+        await hectorRedemption.getRedeemedWalletsCount();
+
+      const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
+      const wallets = await hectorRedemption.getAllRedeemedWallets();
+      let redeemAmts = [];
+      for (let i = 0; i < totalWallets.toNumber(); i++) {
+        redeemAmts.push(redeemAmt);
+      }
+
+      let tx = await vaultRNFT
+        .connect(moderator)
+        .mintWithdraws(wallets, redeemAmts);
+
+      for (let i = 0; i < totalWallets.toNumber(); i++) {
+        const wallet = await hectorRedemption.getRedeemedWalletAtIndex(i);
 
         //update leftover list
         await hectorRedemption.addLeftOverWallet(wallet);
