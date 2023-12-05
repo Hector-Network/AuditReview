@@ -9,7 +9,7 @@ import {
   HectorRedemptionTreasury,
   TokenVault,
   RewardToken,
-  FNFT,
+  RedemptionNFT,
   LockAccessControl,
   LockAddressRegistry,
 } from '../../types';
@@ -28,8 +28,8 @@ describe('Hector Redemption', function () {
     sHec: RewardToken,
     unregisteredToken: RewardToken;
 
-  let FNFT: FNFT;
-  let RNFT: FNFT;
+  let FNFT: RedemptionNFT;
+  let RNFT: RedemptionNFT;
 
   let hectorRegistration: HectorRegistration;
   let hectorRedemption: HectorRedemption;
@@ -68,9 +68,13 @@ describe('Hector Redemption', function () {
     lockAddressRegistry =
       (await lockAccessRegistryFactory.deploy()) as LockAddressRegistry;
 
-    const FNFTFactory = await ethers.getContractFactory('FNFT');
-    FNFT = (await FNFTFactory.deploy(lockAddressRegistry.address)) as FNFT;
-    RNFT = (await FNFTFactory.deploy(lockAddressRegistry.address)) as FNFT;
+    const FNFTFactory = await ethers.getContractFactory('RedemptionNFT');
+    FNFT = (await FNFTFactory.deploy(
+      lockAddressRegistry.address
+    )) as RedemptionNFT;
+    RNFT = (await FNFTFactory.deploy(
+      lockAddressRegistry.address
+    )) as RedemptionNFT;
 
     //Deploy Registration
     const HectorRegistrationFactory = await ethers.getContractFactory(
@@ -95,7 +99,8 @@ describe('Hector Redemption', function () {
     hectorRedemption = (await HectorRedemptionFactory.deploy(
       lockAddressRegistry.address,
       hectorRegistration.address,
-      lastDayToClaim
+      lastDayToClaim,
+      eligibleTokens
     )) as HectorRedemption;
 
     //Deploy Treasury
@@ -327,6 +332,51 @@ describe('Hector Redemption', function () {
         await hectorRedemption.isRedeemedWallet(testWallet1.address)
       ).to.equal(true);
     });
+    it('Should Pass - Add Eligible Token', async function () {
+      await unregisteredToken.mint(
+        testWallet1.address,
+        utils.parseEther('1000')
+      );
+
+      await unregisteredToken
+        .connect(testWallet1)
+        .approve(hectorRedemption.address, utils.parseEther('1000'));
+
+      await expect(
+        hectorRedemption
+          .connect(testWallet1)
+          .deposit(unregisteredToken.address, utils.parseEther('100'))
+      ).to.be.revertedWith('INVALID_PARAM');
+
+      //add new eligible token
+      const totalEligibleTokensBefore =
+        await hectorRedemption.getEligibleTokensCount();
+
+      await hectorRedemption.addEligibleTokens([unregisteredToken.address]);
+
+      expect(await hectorRedemption.getEligibleTokensCount()).to.equal(
+        totalEligibleTokensBefore.add(1)
+      );
+
+      let tx = await hectorRedemption
+        .connect(testWallet1)
+        .deposit(unregisteredToken.address, utils.parseEther('100'));
+
+      await expect(tx)
+        .to.emit(hectorRedemption, 'DepositToken')
+        .withArgs(unregisteredToken.address, utils.parseEther('100'));
+
+      expect(await unregisteredToken.balanceOf(testWallet1.address)).to.equal(
+        utils.parseEther('900')
+      );
+
+      //remove new eligible token
+      await hectorRedemption.removeEligibleToken(unregisteredToken.address);
+
+      expect(await hectorRedemption.getEligibleTokensCount()).to.equal(
+        totalEligibleTokensBefore
+      );
+    });
     it('Failed Deposit Tx when paused', async function () {
       const txPause = await hectorRedemption.pause();
 
@@ -351,69 +401,6 @@ describe('Hector Redemption', function () {
       expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('1');
     });
 
-    it('Should Pass - Deposit NFT', async function () {
-      await RNFT.mint(testWallet2.address);
-      const nftId1 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 0);
-
-      await RNFT.mint(testWallet2.address);
-      const nftId2 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 1);
-
-      await RNFT.mint(testWallet2.address);
-      const nftId3 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 2);
-
-      await hectorRegistration.registerWallet(testWallet2.address);
-
-      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId1);
-
-      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId3);
-
-      let tx = await hectorRedemption
-        .connect(testWallet2)
-        .depositFNFTs([nftId1, nftId3]);
-
-      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('2');
-
-      //check matching deposit wallets
-      expect(
-        await hectorRedemption.isRedeemedWallet(testWallet2.address)
-      ).to.equal(true);
-
-      expect(await hectorRedemption.getRedeemedWalletAtIndex(1)).to.equal(
-        testWallet2.address
-      );
-
-      //Check if the NFTs are transferred to the vault
-      expect(await RNFT.balanceOf(testWallet2.address)).to.equal('1');
-
-      //check nft balance on hector redemption
-      expect(await RNFT.balanceOf(hectorRedemption.address)).to.equal('2');
-    });
-
-    it('Failed Deposit NFT Tx when paused', async function () {
-      const txPause = await hectorRedemption.pause();
-
-      await expect(
-        hectorRedemption.connect(testWallet1).depositFNFTs([5])
-      ).to.be.revertedWith('Pausable: paused');
-    });
-
-    it('Success Deposit NFT Tx when unpaused', async function () {
-      const txPause = await hectorRedemption.unpause();
-
-      await RNFT.mint(testWallet2.address);
-      const nftId1 = await RNFT.tokenOfOwnerByIndex(testWallet2.address, 0);
-
-      await RNFT.connect(testWallet2).approve(hectorRedemption.address, nftId1);
-
-      let tx = await hectorRedemption
-        .connect(testWallet2)
-        .depositFNFTs([nftId1]);
-
-      await expect(tx)
-        .to.emit(hectorRedemption, 'DepositFNFT')
-        .withArgs(nftId1);
-    });
-
     it('Should Pass - Burn Tokens', async function () {
       const beforeBalance = await hecToken.balanceOf(hectorRedemption.address);
       let tx = await hectorRedemption.burnTokens();
@@ -421,13 +408,25 @@ describe('Hector Redemption', function () {
       const afterBalance = await hecToken.balanceOf(hectorRedemption.address);
       expect(afterBalance).to.be.equal(0);
     });
-    it('Should Pass - Burn NFTs', async function () {
-      const beforeBalance = await RNFT.balanceOf(hectorRedemption.address);
-      let tx = await hectorRedemption.burnFNFTs();
 
-      const afterBalance = await RNFT.balanceOf(hectorRedemption.address);
+    it('Should Pass - Withdraw all Tokens', async function () {
+      await hecToken.mint(testWallet1.address, utils.parseEther('1000'));
+
+      await hecToken
+        .connect(testWallet1)
+        .approve(hectorRedemption.address, utils.parseEther('1000'));
+
+      await hectorRedemption
+        .connect(testWallet1)
+        .deposit(hecToken.address, utils.parseEther('100'));
+
+      const beforeBalance = await hecToken.balanceOf(hectorRedemption.address);
+      let tx = await hectorRedemption.withdrawAllTokens();
+
+      const afterBalance = await hecToken.balanceOf(hectorRedemption.address);
       expect(afterBalance).to.be.equal(0);
     });
+
     it('Should Fail - Deposit with Invalid Wallet', async function () {
       await expect(
         hectorRedemption
@@ -449,11 +448,6 @@ describe('Hector Redemption', function () {
           .deposit(testWallet3.address, utils.parseEther('0'))
       ).to.be.revertedWith('INVALID_AMOUNT');
     });
-    it('Should Fail - Deposit NFT with Invalid Owner', async function () {
-      await expect(
-        hectorRedemption.connect(testWallet3).depositFNFTs([0, 1])
-      ).to.be.revertedWith('INVALID_WALLET');
-    });
 
     it('Should Fail To Deposit - When lastDayToClaim is over', async function () {
       //increase the time to 1 day
@@ -463,10 +457,6 @@ describe('Hector Redemption', function () {
         hectorRedemption
           .connect(registeredWallet)
           .deposit(testWallet3.address, utils.parseEther('1'))
-      ).to.be.revertedWith('REDEMPTION_TIME_EXPIRES');
-
-      await expect(
-        hectorRedemption.connect(testWallet3).depositFNFTs([0, 1])
       ).to.be.revertedWith('REDEMPTION_TIME_EXPIRES');
     });
   });
@@ -612,6 +602,42 @@ describe('Hector Redemption', function () {
       }
       treasuryBalance = await hecToken.balanceOf(treasury.address);
       expect(treasuryBalance).to.equal(0);
+    });
+    it('Should Pass - Remove multiple leftover wallets', async function () {
+      const wallets = [
+        testWallet1.address,
+        testWallet2.address,
+        testWallet3.address,
+      ];
+
+      //get current count
+      const leftOverWalletCount =
+        await hectorRedemption.getLeftOverWalletsCount();
+
+      //update leftover list
+      await hectorRedemption.removeLeftOverWallets(wallets);
+
+      // expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
+      //   leftOverWalletCount.add(wallets.length)
+      // );
+    });
+    it('Should Pass - Add multiple leftover wallets', async function () {
+      const wallets = [
+        testWallet1.address,
+        testWallet2.address,
+        testWallet3.address,
+      ];
+
+      //get current count
+      const leftOverWalletCount =
+        await hectorRedemption.getLeftOverWalletsCount();
+
+      //update leftover list
+      await hectorRedemption.addLeftOverWallets(wallets);
+
+      expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
+        leftOverWalletCount.add(wallets.length)
+      );
     });
   });
 });

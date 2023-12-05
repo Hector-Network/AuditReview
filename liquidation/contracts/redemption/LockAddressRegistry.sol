@@ -14,7 +14,7 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
 
     bytes32 public constant ADMIN = 'ADMIN';
     bytes32 public constant TOKEN_VAULT = 'TOKEN_VAULT';
-    bytes32 public constant FNFT = 'FNFT';
+    bytes32 public constant RNFT = 'RNFT';
     bytes32 public constant TREASURY = 'TREASURY';
     bytes32 public constant REDEEMABLE_TOKEN = 'REDEEMABLE_TOKEN';
 
@@ -31,20 +31,20 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
         address multisigWallet,
         address moderator,
         address tokenVault,
-        address fnft,
+        address rnft,
         address treasury,
         address redeemableToken
     ) external override onlyOwner {
         if (multisigWallet == address(0)) revert INVALID_ADDRESS();
         if (tokenVault == address(0)) revert INVALID_ADDRESS();
-        if (fnft == address(0)) revert INVALID_ADDRESS();
+        if (rnft == address(0)) revert INVALID_ADDRESS();
         if (treasury == address(0)) revert INVALID_ADDRESS();
         if (moderator == address(0)) revert INVALID_ADDRESS();
         if (redeemableToken == address(0)) revert INVALID_ADDRESS();
 
         _addresses[ADMIN] = multisigWallet;
         _addresses[TOKEN_VAULT] = tokenVault;
-        _addresses[FNFT] = fnft;
+        _addresses[RNFT] = rnft;
         _addresses[TREASURY] = treasury;
         _addresses[REDEEMABLE_TOKEN] = redeemableToken;
 
@@ -70,20 +70,20 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
         _addresses[TOKEN_VAULT] = vault;
     }
 
-    function getFNFT() external view override returns (address) {
-        return _addresses[FNFT];
+    function getRNFT() external view override returns (address) {
+        return _addresses[RNFT];
     }
 
-    function setFNFT(address fnft) external override onlyOwner {
-        _addresses[FNFT] = fnft;
+    function setRNFT(address rnft) external override onlyOwner {
+        _addresses[RNFT] = rnft;
     }
 
     function getTreasury() external view override returns (address) {
         return _addresses[TREASURY];
     }
 
-    function setTreasury(address fnft) external override onlyOwner {
-        _addresses[TREASURY] = fnft;
+    function setTreasury(address _treasury) external override onlyOwner {
+        _addresses[TREASURY] = _treasury;
     }
 
     function getRedeemToken() external view override returns (address) {

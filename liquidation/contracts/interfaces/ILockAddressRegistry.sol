@@ -6,7 +6,7 @@ interface ILockAddressRegistry {
         address admin,
         address moderator,
         address tokenVault,
-        address fnft,
+        address rnft,
         address treasury,
         address redeemableToken
     ) external;
@@ -19,9 +19,9 @@ interface ILockAddressRegistry {
 
     function setTokenVault(address vault) external;
 
-    function getFNFT() external view returns (address);
+    function getRNFT() external view returns (address);
 
-    function setFNFT(address fnft) external;
+    function setRNFT(address fnft) external;
 
     function getTreasury() external view returns (address);
 

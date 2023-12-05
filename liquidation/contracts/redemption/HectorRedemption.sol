@@ -20,14 +20,12 @@ error INVALID_AMOUNT();
 error INVALID_TIME();
 error INVALID_WALLET();
 error INVALID_BALANCE();
-error EXISTING_FNFT();
 error REDEMPTION_TIME_EXPIRES();
 
 
 contract HectorRedemption is
     IRedemptionWallet,
     LockAccessControl, 
-    IERC721Receiver,
     Pausable
 {
     using SafeERC20 for IERC20;
@@ -37,9 +35,9 @@ contract HectorRedemption is
 
     /// @notice Get whitelist tokens
     IRegistrationWallet public registrationWallet;
+    EnumerableSet.AddressSet private eligibleTokens;
 
-    address[] public eligibleTokens;
-    uint256[] depositedFNFTs;
+    //address[] public eligibleTokens;
     address constant private  BURN_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice A list of wallet addresses tracking who redeems tokens
@@ -54,15 +52,14 @@ contract HectorRedemption is
 
     /* ======== EVENTS ======== */
     event DepositToken(address token, uint256 amount);
-    event DepositFNFT(uint256 fnftId);
     event BurnToken(address token);
-    event BurnFNFT(uint256 fnftId);
     event AddEligibleToken(address token);
+    event RemoveEligibleToken(address token);
 
 
     /* ======== INITIALIZATION ======== */
 
-    constructor(address provider,  address _registrationWallet, uint256 _lastDayToClaim) LockAccessControl(provider) {
+    constructor(address provider,  address _registrationWallet, uint256 _lastDayToClaim, address[] memory _tokens) LockAccessControl(provider) {
         if (_registrationWallet == address(0)) revert INVALID_ADDRESS();
 
         registrationWallet = IRegistrationWallet(_registrationWallet);
@@ -70,6 +67,8 @@ contract HectorRedemption is
         if (_lastDayToClaim <= 0) revert INVALID_PARAM();
 
         lastDayToClaim = _lastDayToClaim;
+
+        _addEligibleTokens(_tokens);
     }
 
     /** 
@@ -82,6 +81,35 @@ contract HectorRedemption is
     
 
     /* ======== PRIVATE ======== */
+    function _addEligibleToken(address _token) private {
+        //check for duplicate
+        if (_token == address(0) || eligibleTokens.contains(_token)) revert INVALID_WALLET();
+
+        eligibleTokens.add(_token);
+
+		emit AddEligibleToken(_token);
+	}
+
+    function _addEligibleTokens(address[] memory _tokens) private {
+        uint256 length = _tokens.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _addEligibleToken(_tokens[i]);
+        }
+	}
+
+     /**
+        @notice remove eligible wallet 
+        @param _token  wallet address
+     */
+    function _removeEligibleToken(address _token) private {
+        //check for duplicate
+        if (_token == address(0) || !eligibleTokens.contains(_token)) revert INVALID_PARAM();
+
+        eligibleTokens.remove(_token);
+
+		emit RemoveEligibleToken(_token);
+	}
    
 
     /* ======== POLICY FUNCTIONS ======== */
@@ -94,12 +122,6 @@ contract HectorRedemption is
         return _unpause();
     }
 
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes memory data) public returns (bytes4) {
-        // Handle the incoming ERC721 token here
-        // Return the expected magic value if the transfer is successful
-        return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
-    }
-
     /* ======== MODERATOR FUNCTIONS ======== */
 
     /**
@@ -109,7 +131,7 @@ contract HectorRedemption is
      */
     function deposit(address token, uint256 amount) external isRedemptionTime whenNotPaused {         
         if (amount <= 0) revert INVALID_AMOUNT();
-        if (!registrationWallet.isRegisteredToken(token)) revert INVALID_PARAM();
+        if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
 
         if (!redeemedWallets.contains(msg.sender)) 
@@ -122,54 +144,18 @@ contract HectorRedemption is
     }
 
     /**
-        @notice deposit a list of FNFT to the contract
-        @param fnftIds Wallet address
-     */
-    function depositFNFTs(uint256[] memory fnftIds) external isRedemptionTime whenNotPaused {  
-        if (fnftIds.length <= 0) revert INVALID_PARAM();
-               
-        uint256 length = fnftIds.length;
-
-        if (!redeemedWallets.contains(msg.sender)) 
-            redeemedWallets.add(msg.sender);
-
-        for (uint256 i = 0; i < length; i++) {
-            uint256 tokenId = fnftIds[i];
-            if (getFNFT().ownerOf(tokenId) != msg.sender) revert INVALID_WALLET();
-
-            getFNFT().safeTransferFrom(msg.sender, address(this), tokenId);
-            depositedFNFTs.push(tokenId);
-            emit DepositFNFT(tokenId);
-        }
-    }
-
-    /**
         @notice burn all tokens from contract
      */
     function burnTokens() external onlyModerator { 
-        eligibleTokens = registrationWallet.getAllTokens();   
-        uint256 length = eligibleTokens.length;
+        uint256 length = eligibleTokens.length();
 
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens[i];
+            address token = eligibleTokens.at(i);
             uint256 balance = IERC20(token).balanceOf(address(this));
-            IERC20(token).safeTransfer(BURN_ADDRESS, balance);
+            if (balance > 0) 
+                IERC20(token).safeTransfer(BURN_ADDRESS, balance);
 
             emit BurnToken(token);
-        }
-    }
-
-    /**
-        @notice burn all FNFTs from depositedFNFTs 
-     */
-    function burnFNFTs() external onlyModerator {            
-        uint256 length = depositedFNFTs.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            uint256 tokenId = depositedFNFTs[i];
-            getFNFT().burn(tokenId);
-
-            emit BurnFNFT(tokenId);
         }
     }
 
@@ -177,38 +163,39 @@ contract HectorRedemption is
         @notice withdraw all tokens
      */    
     function withdrawAllTokens() external onlyModerator {
-        uint256 length = eligibleTokens.length;
+        uint256 length = eligibleTokens.length();
 
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens[i];
+            address token = eligibleTokens.at(i);
             uint256 balance = IERC20(token).balanceOf(address(this));
 
             if (balance > 0) {
                 IERC20(token).safeTransfer(owner(), balance);
-            }
-
-            delete eligibleTokens[i];
+            }        
         }
     }
 
-     /**
-        @notice withdraw all tokens
-     */ 
-    function withdrawAllFNFTs() external onlyModerator {
-        uint256 length = depositedFNFTs.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            uint256 tokenId = depositedFNFTs[i];
-            getFNFT().safeTransferFrom(address(this), owner(), tokenId);
-            depositedFNFTs[i] = depositedFNFTs[depositedFNFTs.length - 1];
-            depositedFNFTs.pop();        }
-    }
-
     /**
-        @notice keeps track of wallets receving leftover from treasury
+        @notice add wallet to leftOverDistributedWallets
         @param wallet Wallet address
      */
     function addLeftOverWallet(address wallet) external onlyModerator {
+        _addLeftOverWallet(wallet);
+    }
+
+    /**
+        @notice add wallets to leftOverDistributedWallets
+        @param wallets Wallet addresses
+     */
+    function addLeftOverWallets(address[] memory wallets) external onlyModerator {
+        uint256 length = wallets.length;
+        for (uint256 i = 0; i < length; i++) {
+            address wallet = wallets[i];
+            _addLeftOverWallet(wallet);
+        }
+    }
+
+    function _addLeftOverWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         if (!leftOverDistributedWallets.contains(wallet)) 
             leftOverDistributedWallets.add(wallet);
@@ -219,6 +206,22 @@ contract HectorRedemption is
         @param wallet Wallet address
      */
     function removeLeftOverWallet(address wallet) external onlyModerator {
+        _removeLeftOverWallet(wallet);
+    }
+
+    /**
+        @notice remove wallets from leftOverDistributedWallets
+        @param wallets Wallet addresses
+     */
+    function removeLeftOverWallets(address[] memory wallets) external onlyModerator {
+        uint256 length = wallets.length;
+        for (uint256 i = 0; i < length; i++) {
+            address wallet = wallets[i];
+            _removeLeftOverWallet(wallet);
+        }        
+    }
+
+    function _removeLeftOverWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         if (leftOverDistributedWallets.contains(wallet)) 
             leftOverDistributedWallets.remove(wallet);
@@ -245,21 +248,32 @@ contract HectorRedemption is
         registrationWallet = IRegistrationWallet(_registrationWallet);
     }
 
-    /* ======== VIEW FUNCTIONS ======== */
-
-    /// @notice Returns the length of eligible tokens
-	function getDepositedFNFTCount() external view returns (uint256) {
-		return depositedFNFTs.length;
+    /**
+        @notice add eligible tokens
+        @param _tokens  token address
+     */
+    function addEligibleTokens(address[] memory _tokens) external onlyModerator {
+        _addEligibleTokens(_tokens);
 	}
+
+    /**
+        @notice remove eligible token
+        @param _token  token address
+     */
+    function removeEligibleToken(address _token) external onlyModerator {
+        _removeEligibleToken(_token);
+	}
+
+    /* ======== VIEW FUNCTIONS ======== */
 
     /// @notice Returns an array of eligible tokens and its balance
     function getTotalBalance() external view returns (TokenBalance[] memory) {
         TokenBalance[] memory tokenBalances;
 
-        uint256 length = eligibleTokens.length;
+        uint256 length = eligibleTokens.length();
         
         for (uint256 i = 0; i < length; i++) {
-            address token = eligibleTokens[i];
+            address token = eligibleTokens.at(i);
             uint256 balance = IERC20(token).balanceOf(address(this));
             tokenBalances[i] = TokenBalance(token, balance);
         }
@@ -346,6 +360,25 @@ contract HectorRedemption is
      */
     function isLeftOverWallet(address _walletAddress) external view returns (bool) {
 		return leftOverDistributedWallets.contains(_walletAddress);
+	}
+
+    /// @notice Returns the length of eligible tokens
+	function getEligibleTokensCount() external view returns (uint256) {
+		return eligibleTokens.length();
+	}
+
+    /// @notice Returns all eligible tokens
+    function getAllTokens() external view returns (address[] memory) {
+        return eligibleTokens.values();
+    }
+
+    /**
+        @notice return if token is registered
+        @param _tokenAddress address
+        @return bool
+     */
+	function isRegisteredToken(address _tokenAddress) external view returns (bool) {
+		return eligibleTokens.contains(_tokenAddress);
 	}
 
 }

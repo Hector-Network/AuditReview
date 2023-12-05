@@ -37,8 +37,8 @@ contract LockAccessControl is Ownable {
         return ITokenVault(addressProvider.getTokenVault());
     }
 
-    function getFNFT() internal view returns (IFNFT) {
-        return IFNFT(addressProvider.getFNFT());
+    function getRNFT() internal view returns (IRedemptionNFT) {
+        return IRedemptionNFT(addressProvider.getRNFT());
     }
 
     function getTreasury() internal view returns (IRedemptionTreasury) {

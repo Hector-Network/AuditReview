@@ -24,8 +24,8 @@ contract TokenVault is
 {
     using SafeERC20 for IERC20;
 
-    /// @notice FNFT configuration
-    mapping(uint256 => FNFTConfig) private fnfts;
+    /// @notice rnft configuration
+    mapping(uint256 => RedeemNFTConfig) private rnfts;
 
     /* ======= CONSTRUCTOR ======= */
 
@@ -48,69 +48,69 @@ contract TokenVault is
     ///////////////////////////////////////////////////////
 
     /**
-     * @notice Mint a new FNFT to acknowledge receipt of user's tokens
-     * @param recipient The address to receive the FNFT
-     * @param fnftConfig The FNFT configuration
-     * @return The FNFT ID
+     * @notice Mint a new rnft to acknowledge receipt of user's tokens
+     * @param recipient The address to receive the rnft
+     * @param rnftConfig The rnft configuration
+     * @return The rnft ID
      */
-    function mint(address recipient, FNFTConfig memory fnftConfig)
+    function mint(address recipient, RedeemNFTConfig memory rnftConfig)
         external
         whenNotPaused
         onlyModerator
         returns (uint256)
     {
         if (recipient == address(0)) revert INVALID_ADDRESS();
-        if (fnftConfig.redeemableAmount == 0 ||
-            (fnftConfig.eligibleTORAmount == 0 && 
-            fnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
+        if (rnftConfig.redeemableAmount == 0 ||
+            (rnftConfig.eligibleTORAmount == 0 && 
+            rnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
 
-        uint256 fnftId = getFNFT().mint(recipient);
-        fnfts[fnftId] = fnftConfig;
+        uint256 rnftId = getRNFT().mint(recipient);
+        rnfts[rnftId] = rnftConfig;
 
         emit RedeemNFTMinted(
             recipient,
-            fnftId,
-            fnftConfig.eligibleTORAmount,
-            fnftConfig.eligibleHECAmount, 
-            fnftConfig.redeemableAmount
+            rnftId,
+            rnftConfig.eligibleTORAmount,
+            rnftConfig.eligibleHECAmount, 
+            rnftConfig.redeemableAmount
         );
 
-        return fnftId;
+        return rnftId;
     }
 
     /**
-     * @notice Withdraw a FNFT and redeem the user's tokens
-     * @param recipient The address to receive the FNFT
-     * @param fnftId The FNFT ID
+     * @notice Withdraw a rnft and redeem the user's tokens
+     * @param recipient The address to receive the rnft
+     * @param rnftId The rnft ID
      */
-    function withdraw(address recipient, uint256 fnftId)
+    function withdraw(address recipient, uint256 rnftId)
         external
         whenNotPaused
         onlyModerator
     {
-        IFNFT fnft = getFNFT();
+        IRedemptionNFT rnft = getRNFT();
 
-        if (fnft.ownerOf(fnftId) != recipient || fnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
+        if (rnft.ownerOf(rnftId) != recipient || rnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
 
-        FNFTConfig memory fnftConfig = fnfts[fnftId];
+        RedeemNFTConfig memory rnftConfig = rnfts[rnftId];
 
         getTreasury().transferRedemption(
-            fnftId,
-            fnftConfig.redeemableToken,
+            rnftId,
+            rnftConfig.redeemableToken,
             recipient,
-            fnftConfig.redeemableAmount
+            rnftConfig.redeemableAmount
         );
 
-        fnft.burnFromOwner(fnftId, recipient); 
+        rnft.burnFromOwner(rnftId, recipient); 
 
-        delete fnfts[fnftId];
+        delete rnfts[rnftId];
 
-        emit RedeemNFTWithdrawn(recipient, fnftId, fnftConfig.redeemableAmount);
+        emit RedeemNFTWithdrawn(recipient, rnftId, rnftConfig.redeemableAmount);
     }
 
     /**
      * @notice Mint & Withdraw from one recipient
-     * @param recipient The address to receive the FNFT
+     * @param recipient The address to receive the rnft
      * @param redeemAmount The amount to redeem
      */
     function mintWithdraw(address recipient, uint256 redeemAmount)  external
@@ -118,13 +118,13 @@ contract TokenVault is
         onlyModerator
         returns (uint256) {
 
-        uint256 fnftId = _mintWithdraw(recipient, redeemAmount);
-        return fnftId;
+        uint256 rnftId = _mintWithdraw(recipient, redeemAmount);
+        return rnftId;
     }
 
     /**
      * @notice Mint & Withdraw from a list of recipients
-     * @param recipients The address to receive the FNFT
+     * @param recipients The address to receive the rnft
      * @param amounts amount to be redeemed
      */
     function mintWithdraws(address[] memory recipients, uint256[] memory amounts)  external
@@ -145,7 +145,7 @@ contract TokenVault is
 
     /**
         * @notice Mint & Withdraw from a recipient
-        * @param recipient The address to receive the FNFT
+        * @param recipient The address to receive the rnft
         * @param redeemAmount The amount to redeem
      */
     function _mintWithdraw(address recipient, uint256 redeemAmount)  internal
@@ -154,38 +154,38 @@ contract TokenVault is
         if (recipient == address(0)) revert INVALID_ADDRESS();
         if (redeemAmount == 0) revert INVALID_AMOUNT();
 
-        FNFTConfig memory fnftConfig = FNFTConfig({
+        RedeemNFTConfig memory rnftConfig = RedeemNFTConfig({
             eligibleTORAmount: 1,
             eligibleHECAmount: 1,
             redeemableAmount: redeemAmount,
             redeemableToken: getRedeemToken()
         });
 
-        uint256 fnftId = getFNFT().mint(recipient);
-        fnfts[fnftId] = fnftConfig;
+        uint256 rnftId = getRNFT().mint(recipient);
+        rnfts[rnftId] = rnftConfig;
 
         emit RedeemNFTMinted(
             recipient,
-            fnftId,
-            fnftConfig.eligibleTORAmount,
-            fnftConfig.eligibleHECAmount, 
-            fnftConfig.redeemableAmount
+            rnftId,
+            rnftConfig.eligibleTORAmount,
+            rnftConfig.eligibleHECAmount, 
+            rnftConfig.redeemableAmount
         );
 
-        IFNFT fnft = getFNFT();
+        IRedemptionNFT rnft = getRNFT();
 
         getTreasury().transferRedemption(
-            fnftId,
-            fnftConfig.redeemableToken,
+            rnftId,
+            rnftConfig.redeemableToken,
             recipient,
-            fnftConfig.redeemableAmount
+            rnftConfig.redeemableAmount
         );
 
-        fnft.burnFromOwner(fnftId, recipient); 
+        rnft.burnFromOwner(rnftId, recipient); 
 
-        delete fnfts[fnftId];
+        delete rnfts[rnftId];
 
-        return fnftId;
+        return rnftId;
     }
 
     ///////////////////////////////////////////////////////
@@ -193,15 +193,15 @@ contract TokenVault is
     ///////////////////////////////////////////////////////
 
     /**
-     * @notice Returns the FNFT configuration
-     * @param fnftId The FNFT ID
-     * @return The FNFT configuration
+     * @notice Returns the rnft configuration
+     * @param rnftId The rnft ID
+     * @return The rnft configuration
      */
-    function getFNFT(uint256 fnftId)
+    function getRNFT(uint256 rnftId)
         external
         view
-        returns (FNFTConfig memory)
+        returns (RedeemNFTConfig memory)
     {
-        return fnfts[fnftId];
+        return rnfts[rnftId];
     }
 }
