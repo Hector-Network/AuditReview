@@ -20,18 +20,18 @@ interface ITokenVault {
         address tokenAddress;
         uint256 amount;
     }
-    struct FNFTConfig {
+    struct RedeemNFTConfig {
         uint256 eligibleTORAmount; // The amount of TOR tokens exchanged from user's tokens
         uint256 eligibleHECAmount; // The amount of HEC tokens exchanged from user's tokens
         address redeemableToken; // The token that the user is redeeming
         uint256 redeemableAmount; // The amount of HEC tokens exchanged from user's tokens        
     }
 
-    function getFNFT(uint256 fnftId) external view returns (FNFTConfig memory);
+    function getRNFT(uint256) external view returns (RedeemNFTConfig memory);
 
-    function mint(address recipient, FNFTConfig memory fnftConfig)
+    function mint(address, RedeemNFTConfig memory)
         external
         returns (uint256);
 
-    function withdraw(address recipient, uint256 fnftId) external;
+    function withdraw(address, uint256) external;
 }

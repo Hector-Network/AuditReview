@@ -5,7 +5,7 @@ import { deployHectorRegistrationContract } from '../../helper/contracts';
 import {
   LockAddressRegistry,
   LockAccessControl,
-  FNFT,
+  RedemptionNFT,
   HectorRedemptionTreasury,
   HectorRedemption,
   TokenVault,
@@ -22,6 +22,7 @@ const deployHectorRedemption: DeployFunction = async (
   const [deployer] = await ethers.getSigners();
   const multisig = '0x4bfb33d65f4167EBE190145939479227E7bf2CB0'; //eth multisig
   const moderator = '0xdE5E7715AB1d80B65f074B3d201e1FB1CB5aD32a';
+  const redeemToken = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; //USDC on ETH
 
   // Deploy LockAddressRegistry
   const lockAccessRegistryFactory = await ethers.getContractFactory(
@@ -43,14 +44,14 @@ const deployHectorRedemption: DeployFunction = async (
   console.log('TokenVault: ', tokenVault.address);
   await waitSeconds(10);
 
-  // Deploy FNFT
+  // Deploy RedemptionNFT
 
-  const fnft = await deploy('FNFT', {
+  const fnft = await deploy('RedemptionNFT', {
     from: deployer.address,
     args: [lockAddressRegistry.address],
     log: true,
   });
-  console.log('FNFT: ', fnft.address);
+  console.log('RedemptionNFT: ', fnft.address);
 
   await waitSeconds(10);
 
@@ -69,7 +70,8 @@ const deployHectorRedemption: DeployFunction = async (
     moderator,
     tokenVault.address,
     fnft.address,
-    treasury.address
+    treasury.address,
+    redeemToken
   );
   console.log('Initialized LockAddressRegistry');
 
@@ -105,7 +107,7 @@ const deployHectorRedemption: DeployFunction = async (
     try {
       await hre.run('verify:verify', {
         address: fnft.address,
-        contract: 'contracts/redemption/FNFT.sol:FNFT',
+        contract: 'contracts/redemption/FNFT.sol:RedemptionNFT',
         constructorArguments: [lockAddressRegistry.address],
       });
     } catch (_) {}

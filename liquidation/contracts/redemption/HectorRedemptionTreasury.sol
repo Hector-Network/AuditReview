@@ -53,7 +53,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
         @param _amount  amount to transfer
      */
     function transferRedemption(uint256 rnftid, address _token, address _to, uint256 _amount) external onlyModerator {   
-        IFNFT fnft = getFNFT();
+        IRedemptionNFT fnft = getRNFT();
 
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_to == address(0)) revert INVALID_ADDRESS();     
