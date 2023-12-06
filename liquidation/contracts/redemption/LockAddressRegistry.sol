@@ -13,6 +13,7 @@ error INVALID_ADDRESS();
 contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRegistry {
 
     bytes32 public constant ADMIN = 'ADMIN';
+    bytes32 public constant MULTISIG = 'MULTISIG';
     bytes32 public constant TOKEN_VAULT = 'TOKEN_VAULT';
     bytes32 public constant RNFT = 'RNFT';
     bytes32 public constant TREASURY = 'TREASURY';
@@ -42,7 +43,7 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
         if (moderator == address(0)) revert INVALID_ADDRESS();
         if (redeemableToken == address(0)) revert INVALID_ADDRESS();
 
-        _addresses[ADMIN] = multisigWallet;
+        _addresses[MULTISIG] = multisigWallet;
         _addresses[TOKEN_VAULT] = tokenVault;
         _addresses[RNFT] = rnft;
         _addresses[TREASURY] = treasury;
@@ -54,12 +55,12 @@ contract LockAddressRegistry is AccessControlEnumerable, Ownable, ILockAddressRe
         _setupRole(MODERATOR_ROLE, moderator);
     }
 
-    function getAdmin() external view override returns (address) {
-        return _addresses[ADMIN];
+    function getMultiSigWallet() external view override returns (address) {
+        return _addresses[MULTISIG];
     }
 
-    function setAdmin(address admin) external override onlyOwner {
-        _addresses[ADMIN] = admin;
+    function setMultiSigWallet(address _multisig) external override onlyOwner {
+        _addresses[MULTISIG] = _multisig;
     }
 
     function getTokenVault() external view override returns (address) {
