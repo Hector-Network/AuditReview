@@ -17,7 +17,6 @@ contract LockAccessControl is Ownable {
 
     constructor(address provider) {
         addressProvider = ILockAddressRegistry(provider);
-        _transferOwnership(getMultiSigWallet());
     }
 
     /* ======= MODIFIER ======= */
@@ -48,10 +47,6 @@ contract LockAccessControl is Ownable {
 
     function getRedeemToken() internal view returns (address) {
         return addressProvider.getRedeemToken();
-    }
-
-    function getMultiSigWallet() internal view returns (address) {
-        return addressProvider.getMultiSigWallet();
     }
 
 }

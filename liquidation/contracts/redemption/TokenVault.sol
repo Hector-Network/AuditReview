@@ -29,9 +29,7 @@ contract TokenVault is
 
     /* ======= CONSTRUCTOR ======= */
 
-   constructor(address provider) LockAccessControl(provider) {
-        _transferOwnership(getMultiSigWallet());
-   }
+   constructor(address provider) LockAccessControl(provider) {}
 
     ///////////////////////////////////////////////////////
     //               MANAGER CALLED FUNCTIONS            //

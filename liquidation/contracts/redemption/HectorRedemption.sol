@@ -69,8 +69,6 @@ contract HectorRedemption is
         lastDayToClaim = _lastDayToClaim;
 
         _addEligibleTokens(_tokens);
-
-        _transferOwnership(getMultiSigWallet());
     }
 
     /** 

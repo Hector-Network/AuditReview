@@ -11,9 +11,9 @@ interface ILockAddressRegistry {
         address redeemableToken
     ) external;
 
-    function getMultiSigWallet() external view returns (address);
+    function getAdmin() external view returns (address);
 
-    function setMultiSigWallet(address admin) external;
+    function setAdmin(address admin) external;
 
     function getTokenVault() external view returns (address);
 

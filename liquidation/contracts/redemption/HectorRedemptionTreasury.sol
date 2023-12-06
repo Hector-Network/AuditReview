@@ -33,9 +33,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
     event SendRedemption(address indexed who, uint256 fnftid, uint256 amount);
 
     /* ======== INITIALIZATION ======== */
-    constructor(address provider) LockAccessControl(provider) {
-        _transferOwnership(getMultiSigWallet());
-    }
+    constructor(address provider) LockAccessControl(provider) {}
 
     /* ======== POLICY FUNCTIONS ======== */
 
