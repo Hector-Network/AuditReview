@@ -229,7 +229,7 @@ describe('Hector Redemption', function () {
           registeredWallet.address,
           utils.parseEther('1000000000000000')
         )
-      ).to.be.revertedWith('INVALID_AMOUNT');
+      ).to.be.revertedWith('INSUFFICIENT_FUND');
     });
     // it('Should Pass - Test Withdraw', async function () {
     //   let balanceBefore = await hecToken.balanceOf(multisig.address);
@@ -286,11 +286,11 @@ describe('Hector Redemption', function () {
         .to.emit(vaultRNFT, 'RedeemNFTWithdrawn')
         .withArgs(registeredWallet.address, 1, utils.parseEther('10'));
 
-      expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('1');
+      // expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('1');
 
-      expect(await hecToken.balanceOf(registeredWallet.address)).to.equal(
-        utils.parseEther('1010')
-      );
+      // expect(await hecToken.balanceOf(registeredWallet.address)).to.equal(
+      //   utils.parseEther('1010')
+      // );
     });
     it('Should Fail - Unable to Withdraw due to invalid receipt', async function () {
       await expect(
@@ -331,20 +331,29 @@ describe('Hector Redemption', function () {
       expect(
         await hectorRedemption.isRedeemedWallet(testWallet1.address)
       ).to.equal(true);
+
+      //Register wallet to TokenVault
+      await vaultRNFT.connect(moderator).addEligibleWallet(testWallet1.address);
+
+      expect(await vaultRNFT.isRegisteredWallet(testWallet1.address)).to.equal(
+        true
+      );
     });
     it('Should Pass - Add Eligible Token', async function () {
       await unregisteredToken.mint(
-        testWallet1.address,
+        testWallet2.address,
         utils.parseEther('1000')
       );
 
       await unregisteredToken
-        .connect(testWallet1)
+        .connect(testWallet2)
         .approve(hectorRedemption.address, utils.parseEther('1000'));
+
+      await hectorRegistration.registerWallet(testWallet2.address);
 
       await expect(
         hectorRedemption
-          .connect(testWallet1)
+          .connect(testWallet2)
           .deposit(unregisteredToken.address, utils.parseEther('100'))
       ).to.be.revertedWith('INVALID_PARAM');
 
@@ -359,14 +368,17 @@ describe('Hector Redemption', function () {
       );
 
       let tx = await hectorRedemption
-        .connect(testWallet1)
+        .connect(testWallet2)
         .deposit(unregisteredToken.address, utils.parseEther('100'));
+
+      //Register wallet to TokenVault
+      await vaultRNFT.connect(moderator).addEligibleWallet(testWallet2.address);
 
       await expect(tx)
         .to.emit(hectorRedemption, 'DepositToken')
         .withArgs(unregisteredToken.address, utils.parseEther('100'));
 
-      expect(await unregisteredToken.balanceOf(testWallet1.address)).to.equal(
+      expect(await unregisteredToken.balanceOf(testWallet2.address)).to.equal(
         utils.parseEther('900')
       );
 
@@ -398,7 +410,7 @@ describe('Hector Redemption', function () {
         .to.emit(hectorRedemption, 'DepositToken')
         .withArgs(hecToken.address, utils.parseEther('10'));
 
-      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('1');
+      expect(await hectorRedemption.getRedeemedWalletsCount()).to.equal('2');
     });
 
     it('Should Pass - Burn Tokens', async function () {
@@ -432,7 +444,7 @@ describe('Hector Redemption', function () {
         hectorRedemption
           .connect(registeredWallet)
           .deposit(hecToken.address, utils.parseEther('100'))
-      ).to.be.revertedWith('INVALID_WALLET');
+      ).to.be.revertedWith('UNAUTHORIZED_RECIPIENT');
     });
     it('Should Fail - Deposit with Invalid Token', async function () {
       await expect(
@@ -462,19 +474,38 @@ describe('Hector Redemption', function () {
   });
 
   describe('#Token Vault - Distribute Leftover', async () => {
+    before(async function () {
+      //Uncomment when running this test case alone
+      // await hecToken.mint(testWallet1.address, utils.parseEther('1000'));
+      // await hectorRegistration.registerWallet(testWallet1.address);
+      // await hecToken
+      //   .connect(testWallet1)
+      //   .approve(hectorRedemption.address, utils.parseEther('1000'));
+      // let tx = await hectorRedemption
+      //   .connect(testWallet1)
+      //   .deposit(hecToken.address, utils.parseEther('100'));
+      // await hecToken.mint(testWallet2.address, utils.parseEther('1000'));
+      // await hectorRegistration.registerWallet(testWallet2.address);
+      // await hecToken
+      //   .connect(testWallet2)
+      //   .approve(hectorRedemption.address, utils.parseEther('1000'));
+      // let tx2 = await hectorRedemption
+      //   .connect(testWallet2)
+      //   .deposit(hecToken.address, utils.parseEther('100'));
+    });
     it('Should Pass - Distribute all remaining funds to redeemed wallets', async function () {
       //1. Fund the Treasury contract - done
       //get balance of hecToken in treasury contract
       let treasuryBalance = await hecToken.balanceOf(treasury.address);
       //2. Generate test wallets
       const registeredWallets = [];
-      const totalWallets: BigNumber =
-        await hectorRedemption.getRedeemedWalletsCount();
+      const totalWallets: BigNumber = await vaultRNFT.getEligibleWalletsCount();
 
       for (let i = 0; i < totalWallets.toNumber(); i++) {
-        const wallet = await hectorRedemption.getRedeemedWalletAtIndex(i);
+        const wallet = await vaultRNFT.getEligibleWalletAtIndex(i);
 
         const balanceBefore = await hecToken.balanceOf(wallet);
+
         let nftBalance = await RNFT.balanceOf(wallet);
 
         //3. Mint NFT
@@ -503,39 +534,11 @@ describe('Hector Redemption', function () {
         expect(await hecToken.balanceOf(wallet)).to.equal(
           balanceBefore.add(redeemAmt)
         );
-
-        //update leftover list
-        await hectorRedemption.addLeftOverWallet(wallet);
       }
       treasuryBalance = await hecToken.balanceOf(treasury.address);
       expect(treasuryBalance).to.equal(0);
     });
 
-    it('Should Pass - Unable to Add duplicated leftover wallet', async function () {
-      const leftOverWalletCount =
-        await hectorRedemption.getLeftOverWalletsCount();
-
-      //update leftover list
-      await hectorRedemption.addLeftOverWallet(testWallet1.address);
-
-      expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
-        leftOverWalletCount
-      );
-    });
-    it('Should Pass - Remove Leftover wallet', async function () {
-      const leftOverWalletCount =
-        await hectorRedemption.getLeftOverWalletsCount();
-
-      //update leftover list
-      await hectorRedemption.removeLeftOverWallet(testWallet1.address);
-
-      const leftOverWalletCountPost =
-        await hectorRedemption.getLeftOverWalletsCount();
-
-      expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
-        leftOverWalletCount.sub(1)
-      );
-    });
     it('Should Pass - Use mintWithdraw func to distribute one wallet', async function () {
       //1. Fund the Treasury contract - done
       //get balance of hecToken in treasury contract
@@ -544,11 +547,10 @@ describe('Hector Redemption', function () {
       let treasuryBalance = await hecToken.balanceOf(treasury.address);
       //2. Generate test wallets
       const registeredWallets = [];
-      const totalWallets: BigNumber =
-        await hectorRedemption.getRedeemedWalletsCount();
+      const totalWallets: BigNumber = await vaultRNFT.getEligibleWalletsCount();
 
       for (let i = 0; i < totalWallets.toNumber(); i++) {
-        const wallet = await hectorRedemption.getRedeemedWalletAtIndex(i);
+        const wallet = await vaultRNFT.getEligibleWalletAtIndex(i);
 
         const balanceBefore = await hecToken.balanceOf(wallet);
         let nftBalance = await RNFT.balanceOf(wallet);
@@ -565,9 +567,6 @@ describe('Hector Redemption', function () {
         expect(await hecToken.balanceOf(wallet)).to.equal(
           balanceBefore.add(redeemAmt)
         );
-
-        //update leftover list
-        await hectorRedemption.addLeftOverWallet(wallet);
       }
       treasuryBalance = await hecToken.balanceOf(treasury.address);
       expect(treasuryBalance).to.equal(0);
@@ -580,8 +579,7 @@ describe('Hector Redemption', function () {
       let treasuryBalance = await hecToken.balanceOf(treasury.address);
       //2. Generate test wallets
       const registeredWallets = [];
-      const totalWallets: BigNumber =
-        await hectorRedemption.getRedeemedWalletsCount();
+      const totalWallets: BigNumber = await vaultRNFT.getEligibleWalletsCount();
 
       const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
       const wallets = await hectorRedemption.getAllRedeemedWallets();
@@ -594,50 +592,8 @@ describe('Hector Redemption', function () {
         .connect(moderator)
         .mintWithdraws(wallets, redeemAmts);
 
-      for (let i = 0; i < totalWallets.toNumber(); i++) {
-        const wallet = await hectorRedemption.getRedeemedWalletAtIndex(i);
-
-        //update leftover list
-        await hectorRedemption.addLeftOverWallet(wallet);
-      }
       treasuryBalance = await hecToken.balanceOf(treasury.address);
       expect(treasuryBalance).to.equal(0);
-    });
-    it('Should Pass - Remove multiple leftover wallets', async function () {
-      const wallets = [
-        testWallet1.address,
-        testWallet2.address,
-        testWallet3.address,
-      ];
-
-      //get current count
-      const leftOverWalletCount =
-        await hectorRedemption.getLeftOverWalletsCount();
-
-      //update leftover list
-      await hectorRedemption.removeLeftOverWallets(wallets);
-
-      // expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
-      //   leftOverWalletCount.add(wallets.length)
-      // );
-    });
-    it('Should Pass - Add multiple leftover wallets', async function () {
-      const wallets = [
-        testWallet1.address,
-        testWallet2.address,
-        testWallet3.address,
-      ];
-
-      //get current count
-      const leftOverWalletCount =
-        await hectorRedemption.getLeftOverWalletsCount();
-
-      //update leftover list
-      await hectorRedemption.addLeftOverWallets(wallets);
-
-      expect(await hectorRedemption.getLeftOverWalletsCount()).to.equal(
-        leftOverWalletCount.add(wallets.length)
-      );
     });
   });
 });

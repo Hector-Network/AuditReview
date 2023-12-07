@@ -21,7 +21,7 @@ error INVALID_TIME();
 error INVALID_WALLET();
 error INVALID_BALANCE();
 error REDEMPTION_TIME_EXPIRES();
-
+error UNAUTHORIZED_RECIPIENT();
 
 contract HectorRedemption is
     IRedemptionWallet,
@@ -42,10 +42,6 @@ contract HectorRedemption is
 
     /// @notice A list of wallet addresses tracking who redeems tokens
     EnumerableSet.AddressSet private redeemedWallets;
-
-    /// @notice A list of wallet addresses tracking who receives leftover after redemption
-    EnumerableSet.AddressSet private leftOverDistributedWallets;
-
 
     /// @notice last day to claim
     uint256 public lastDayToClaim; 
@@ -132,7 +128,7 @@ contract HectorRedemption is
     function deposit(address token, uint256 amount) external isRedemptionTime whenNotPaused {         
         if (amount <= 0) revert INVALID_AMOUNT();
         if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
-        if (!registrationWallet.isRegisteredWallet(msg.sender)) revert INVALID_WALLET();
+        if (!registrationWallet.isRegisteredWallet(msg.sender)) revert UNAUTHORIZED_RECIPIENT();
 
         if (!redeemedWallets.contains(msg.sender)) 
             redeemedWallets.add(msg.sender);
@@ -173,59 +169,6 @@ contract HectorRedemption is
                 IERC20(token).safeTransfer(owner(), balance);
             }        
         }
-    }
-
-    /**
-        @notice add wallet to leftOverDistributedWallets
-        @param wallet Wallet address
-     */
-    function addLeftOverWallet(address wallet) external onlyModerator {
-        _addLeftOverWallet(wallet);
-    }
-
-    /**
-        @notice add wallets to leftOverDistributedWallets
-        @param wallets Wallet addresses
-     */
-    function addLeftOverWallets(address[] memory wallets) external onlyModerator {
-        uint256 length = wallets.length;
-        for (uint256 i = 0; i < length; i++) {
-            address wallet = wallets[i];
-            _addLeftOverWallet(wallet);
-        }
-    }
-
-    function _addLeftOverWallet(address wallet) internal {
-        if (wallet == address(0)) revert INVALID_ADDRESS();
-        if (!leftOverDistributedWallets.contains(wallet)) 
-            leftOverDistributedWallets.add(wallet);
-    }
-
-    /**
-        @notice remove wallet from leftOverDistributedWallets
-        @param wallet Wallet address
-     */
-    function removeLeftOverWallet(address wallet) external onlyModerator {
-        _removeLeftOverWallet(wallet);
-    }
-
-    /**
-        @notice remove wallets from leftOverDistributedWallets
-        @param wallets Wallet addresses
-     */
-    function removeLeftOverWallets(address[] memory wallets) external onlyModerator {
-        uint256 length = wallets.length;
-        for (uint256 i = 0; i < length; i++) {
-            address wallet = wallets[i];
-            _removeLeftOverWallet(wallet);
-        }        
-    }
-
-    function _removeLeftOverWallet(address wallet) internal {
-        if (wallet == address(0)) revert INVALID_ADDRESS();
-        if (leftOverDistributedWallets.contains(wallet)) 
-            leftOverDistributedWallets.remove(wallet);
-
     }
 
     /**
@@ -286,11 +229,6 @@ contract HectorRedemption is
         return redeemedWallets.values();
     }
 
-      /// @notice Returns all leftover wallet addresses
-    function getAllLeftoverWallets() external view returns (address[] memory) {
-        return leftOverDistributedWallets.values();
-    }
-
      /// @notice Returns all redeemed wallet addresses from a range
     function getRedeemedWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
         uint256 length = redeemedWallets.length();
@@ -307,40 +245,14 @@ contract HectorRedemption is
         return _wallets;
     }
 
-     /// @notice Returns all leftover wallet addresses from a range
-    function getLeftOverWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
-        uint256 length = leftOverDistributedWallets.length();
-        if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
-
-        address[] memory _wallets = new address[](toIndex - fromIndex);
-        uint256 index = 0;
-
-        for (uint256 i = fromIndex; i < toIndex; i++) {
-            _wallets[index] = leftOverDistributedWallets.at(i);
-            index++;
-        }
-
-        return _wallets;
-    }
-
     /// @notice Returns redeemed wallet at index
     function getRedeemedWalletAtIndex(uint16 index) external view returns (address) {
         return redeemedWallets.at(index);
     }
 
-    /// @notice Returns leftover wallet at index
-    function getLeftOverWalletAtIndex(uint16 index) external view returns (address) {
-        return leftOverDistributedWallets.at(index);
-    }
-
     /// @notice Returns the count of redeemed wallets
 	function getRedeemedWalletsCount() external view returns (uint256) {
 		return redeemedWallets.length();
-	}
-
-    /// @notice Returns the count of leftover wallets
-	function getLeftOverWalletsCount() external view returns (uint256) {
-		return leftOverDistributedWallets.length();
 	}
 
     /**
@@ -350,16 +262,6 @@ contract HectorRedemption is
      */
 	function isRedeemedWallet(address _walletAddress) external view returns (bool) {
 		return redeemedWallets.contains(_walletAddress);
-	}
-
-
-    /**
-        @notice return if wallet belongs to a leftover list
-        @param _walletAddress address
-        @return bool
-     */
-    function isLeftOverWallet(address _walletAddress) external view returns (bool) {
-		return leftOverDistributedWallets.contains(_walletAddress);
 	}
 
     /// @notice Returns the length of eligible tokens

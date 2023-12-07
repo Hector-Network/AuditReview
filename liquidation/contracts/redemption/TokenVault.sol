@@ -4,6 +4,7 @@ import '@openzeppelin/contracts/security/Pausable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../interfaces/ITokenVault.sol';
 import '../interfaces/IFNFT.sol';
 import './LockAccessControl.sol';
@@ -14,18 +15,24 @@ error INVALID_AMOUNT();
 error INVALID_WALLET();
 error INVALID_BALANCE();
 error INVALID_RECIPIENT();
+error UNAUTHORIZED_RECIPIENT();
 
-// Credits to Revest Team
-// Github:https://github.com/Revest-Finance/RevestContracts/blob/master/hardhat/contracts/TokenVault.sol
 contract TokenVault is
     ITokenVault,
     LockAccessControl,
     Pausable
 {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice rnft configuration
-    mapping(uint256 => RedeemNFTConfig) private rnfts;
+    mapping(uint256 => RedeemNFTConfig) public rnfts;
+
+    // @notice address wallets => received tokens
+    mapping(address => uint256) public recipientTokens;
+
+    // @notice list of wallets qualified to receive tokens
+    EnumerableSet.AddressSet private eligibleWallets;
 
     /* ======= CONSTRUCTOR ======= */
 
@@ -77,7 +84,7 @@ contract TokenVault is
 
         return rnftId;
     }
-
+  
     /**
      * @notice Withdraw a rnft and redeem the user's tokens
      * @param recipient The address to receive the rnft
@@ -115,7 +122,6 @@ contract TokenVault is
      */
     function mintWithdraw(address recipient, uint256 redeemAmount)  external
         whenNotPaused
-        onlyModerator
         returns (uint256) {
 
         uint256 rnftId = _mintWithdraw(recipient, redeemAmount);
@@ -153,6 +159,7 @@ contract TokenVault is
 
         if (recipient == address(0)) revert INVALID_ADDRESS();
         if (redeemAmount == 0) revert INVALID_AMOUNT();
+        if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
 
         RedeemNFTConfig memory rnftConfig = RedeemNFTConfig({
             eligibleTORAmount: 1,
@@ -181,11 +188,66 @@ contract TokenVault is
             rnftConfig.redeemableAmount
         );
 
+        recipientTokens[recipient] += redeemAmount;
+
         rnft.burnFromOwner(rnftId, recipient); 
 
         delete rnfts[rnftId];
 
         return rnftId;
+    }
+
+     /**
+        @notice add wallet to eligibleWallets
+        @param wallet Wallet address
+     */
+    function addEligibleWallet(address wallet) external onlyModerator {
+        _addEligibleWallet(wallet);
+    }
+
+    /**
+        @notice add wallets to eligibleWallets
+        @param wallets Wallet addresses
+     */
+    function addEligibleWallets(address[] memory wallets) external onlyModerator {
+        uint256 length = wallets.length;
+        for (uint256 i = 0; i < length; i++) {
+            address wallet = wallets[i];
+            _addEligibleWallet(wallet);
+        }
+    }
+
+    function _addEligibleWallet(address wallet) internal {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        if (!eligibleWallets.contains(wallet)) 
+            eligibleWallets.add(wallet);
+    }
+
+    /**
+        @notice remove wallet from eligibleWallets
+        @param wallet Wallet address
+     */
+    function removeEligibleWallet(address wallet) external onlyModerator {
+        _removeEligibleWallet(wallet);
+    }
+
+    /**
+        @notice remove wallets from eligibleWallets
+        @param wallets Wallet addresses
+     */
+    function removeEligibleWallets(address[] memory wallets) external onlyModerator {
+        uint256 length = wallets.length;
+        for (uint256 i = 0; i < length; i++) {
+            address wallet = wallets[i];
+            _removeEligibleWallet(wallet);
+        }        
+    }
+
+    function _removeEligibleWallet(address wallet) internal {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        if (eligibleWallets.contains(wallet)) 
+            eligibleWallets.remove(wallet);
+
     }
 
     ///////////////////////////////////////////////////////
@@ -203,5 +265,45 @@ contract TokenVault is
         returns (RedeemNFTConfig memory)
     {
         return rnfts[rnftId];
+    }
+
+     /// @notice Returns the length of eligible wallets
+	function getEligibleWalletsCount() external view returns (uint256) {
+		return eligibleWallets.length();
+	}
+
+    /// @notice Returns all eligible wallets
+    function getAllEligibleWallets() external view returns (address[] memory) {
+        return eligibleWallets.values();
+    }
+
+    /**
+        @notice return if wallet is registered
+        @param _walletAddress address
+        @return bool
+     */
+	function isRegisteredWallet(address _walletAddress) external view returns (bool) {
+		return eligibleWallets.contains(_walletAddress);
+	}
+
+    /// @notice Returns all wallet addresses from a range
+    function getEligibleWalletsFromRange(uint16 fromIndex, uint16 toIndex) external view returns (address[] memory) {
+        uint256 length = eligibleWallets.length();
+        if (fromIndex >= toIndex || toIndex > length) revert INVALID_PARAM();
+
+        address[] memory _wallets = new address[](toIndex - fromIndex);
+        uint256 index = 0;
+
+        for (uint256 i = fromIndex; i < toIndex; i++) {
+            _wallets[index] = eligibleWallets.at(i);
+            index++;
+        }
+
+        return _wallets;
+    }
+
+    /// @notice Returns wallet at index
+    function getEligibleWalletAtIndex(uint16 index) external view returns (address) {
+        return eligibleWallets.at(index);
     }
 }
