@@ -8,11 +8,15 @@ import {
   HectorRedemption,
   HectorRedemptionTreasury,
   TokenVault,
-  RewardToken,
+  RewardToken2,
   RedemptionNFT,
   LockAccessControl,
   LockAddressRegistry,
+  LeftOverTreasury,
+  LPToken,
+  UniswapV2Router02,
 } from '../../types';
+import exp from 'constants';
 
 describe('Hector Redemption', function () {
   let deployer: SignerWithAddress;
@@ -21,12 +25,14 @@ describe('Hector Redemption', function () {
   let registeredWallet: SignerWithAddress;
   let testWallet1: SignerWithAddress,
     testWallet2: SignerWithAddress,
-    testWallet3: SignerWithAddress;
+    testWallet3: SignerWithAddress,
+    unRegisterWallet: SignerWithAddress;
 
-  let hecToken: RewardToken,
-    wsHec: RewardToken,
-    sHec: RewardToken,
-    unregisteredToken: RewardToken;
+  let hecToken: RewardToken2,
+    wsHec: RewardToken2,
+    sHec: RewardToken2,
+    unregisteredToken: RewardToken2,
+    torToken: RewardToken2;
 
   let FNFT: RedemptionNFT;
   let RNFT: RedemptionNFT;
@@ -41,6 +47,10 @@ describe('Hector Redemption', function () {
 
   let lockAccess: LockAccessControl;
   let lockAddressRegistry: LockAddressRegistry;
+  let leftOverTreasury: LeftOverTreasury;
+
+  let torHEC: LPToken;
+  let uniswapV2Router: UniswapV2Router02;
 
   before(async function () {
     //this.timeout(10000000);
@@ -52,18 +62,51 @@ describe('Hector Redemption', function () {
       testWallet1,
       testWallet2,
       testWallet3,
+      unRegisterWallet,
     ] = await ethers.getSigners();
 
-    const TokenFactory = await ethers.getContractFactory('RewardToken');
-    hecToken = (await TokenFactory.deploy()) as RewardToken;
-    wsHec = (await TokenFactory.deploy()) as RewardToken;
-    sHec = (await TokenFactory.deploy()) as RewardToken;
-    unregisteredToken = (await TokenFactory.deploy()) as RewardToken;
+    const TokenFactory = await ethers.getContractFactory('RewardToken2');
+    hecToken = (await TokenFactory.deploy(
+      'HEC Token',
+      'HEC',
+      9
+    )) as RewardToken2;
+    torToken = (await TokenFactory.deploy(
+      'TOR Token',
+      'TOR',
+      18
+    )) as RewardToken2;
+    wsHec = (await TokenFactory.deploy(
+      'wsHEC Token',
+      'wsHEC',
+      18
+    )) as RewardToken2;
+    sHec = (await TokenFactory.deploy('sHEC Token', 'sHEC', 9)) as RewardToken2;
+    unregisteredToken = (await TokenFactory.deploy(
+      'UHEC Token',
+      'UHEC',
+      9
+    )) as RewardToken2;
+
+    const LPTokenFactory = await ethers.getContractFactory('LPToken');
+    torHEC = (await LPTokenFactory.deploy(
+      'TOR-HEC LP',
+      'TOR-HEC',
+      18,
+      torToken.address,
+      hecToken.address
+    )) as LPToken;
+
+    const UniswapV2Router02Factory = await ethers.getContractFactory(
+      'UniswapV2Router02'
+    );
+    uniswapV2Router =
+      (await UniswapV2Router02Factory.deploy()) as UniswapV2Router02;
 
     let eligibleTokens = [hecToken.address, wsHec.address, sHec.address];
 
     const lockAccessRegistryFactory = await ethers.getContractFactory(
-      'LockAddressRegistry'
+      'contracts/redemption/LockAddressRegistry.sol:LockAddressRegistry'
     );
     lockAddressRegistry =
       (await lockAccessRegistryFactory.deploy()) as LockAddressRegistry;
@@ -111,6 +154,16 @@ describe('Hector Redemption', function () {
     treasury = (await HectorTreasuryFactory.deploy(
       lockAddressRegistry.address
     )) as HectorRedemptionTreasury;
+
+    //Deploy LeftOverTreasury
+    const LeftOverTreasuryFactory = await ethers.getContractFactory(
+      'LeftOverTreasury'
+    );
+
+    leftOverTreasury = (await LeftOverTreasuryFactory.deploy(
+      hecToken.address,
+      lockAddressRegistry.address
+    )) as LeftOverTreasury;
 
     const TokenVaultFactory = await ethers.getContractFactory('TokenVault');
     vaultFNFT = (await TokenVaultFactory.deploy(
@@ -231,15 +284,22 @@ describe('Hector Redemption', function () {
         )
       ).to.be.revertedWith('INSUFFICIENT_FUND');
     });
-    // it('Should Pass - Test Withdraw', async function () {
-    //   let balanceBefore = await hecToken.balanceOf(multisig.address);
-    //   let tx = await treasury.withdrawAll();
-    //   let balanceAfter = await hecToken.balanceOf(multisig.address);
+    it('Should Pass - Withdraw all to Treasury owner wallet', async function () {
+      const _owner = await treasury.owner();
+      let balanceBefore = await hecToken.balanceOf(_owner);
+      const treasuryBalanceBefore = await hecToken.balanceOf(treasury.address);
 
-    //   expect(balanceAfter).to.be.equal(
-    //     balanceBefore.add(utils.parseEther('1000000'))
-    //   );
-    // });
+      let tx = await treasury.withdrawAll();
+      let balanceAfter = await hecToken.balanceOf(_owner);
+      expect(balanceAfter).to.be.equal(
+        balanceBefore.add(treasuryBalanceBefore)
+      );
+
+      await hecToken.mint(deployer.address, utils.parseEther('1000000'));
+      await hecToken.approve(treasury.address, utils.parseEther('1000000'));
+
+      await treasury.deposit(hecToken.address, utils.parseEther('1000000'));
+    });
   });
 
   describe('#Token Vault', async () => {
@@ -594,6 +654,184 @@ describe('Hector Redemption', function () {
 
       treasuryBalance = await hecToken.balanceOf(treasury.address);
       expect(treasuryBalance).to.equal(0);
+    });
+  });
+
+  describe('#Leftover Treasury - Distribute Leftover', async () => {
+    before(async function () {});
+    it('Should Pass - Deposit', async function () {
+      await hecToken.mint(deployer.address, utils.parseEther('1000000'));
+      await hecToken.approve(
+        leftOverTreasury.address,
+        utils.parseEther('1000000')
+      );
+
+      await leftOverTreasury.addEligibleWallets([
+        testWallet1.address,
+        testWallet2.address,
+        testWallet3.address,
+      ]);
+      let tx = await leftOverTreasury.deposit(utils.parseEther('1000000'));
+
+      //check balance after deposit
+      expect(await hecToken.balanceOf(leftOverTreasury.address)).to.equal(
+        utils.parseEther('1000000')
+      );
+    });
+    it('Should Pass -  WithdrawAll', async function () {
+      const _owner = await treasury.owner();
+      let balanceBefore = await hecToken.balanceOf(_owner);
+      const treasuryBalanceBefore = await hecToken.balanceOf(treasury.address);
+
+      await treasury.withdrawAll();
+      let balanceAfter = await hecToken.balanceOf(_owner);
+      expect(balanceAfter).to.be.equal(
+        balanceBefore.add(treasuryBalanceBefore)
+      );
+
+      await hecToken.mint(deployer.address, utils.parseEther('1000000'));
+      await hecToken.approve(
+        leftOverTreasury.address,
+        utils.parseEther('1000000')
+      );
+
+      await leftOverTreasury.deposit(utils.parseEther('1000000'));
+    });
+    it('Should Pass -  Distribute Leftover to authorized Wallet', async function () {
+      //get balance of testWallet1
+      const balanceBefore = await hecToken.balanceOf(testWallet1.address);
+      //get balance of treasury
+      const treasuryBalance = await hecToken.balanceOf(
+        leftOverTreasury.address
+      );
+      const amountPerWallet = await leftOverTreasury.amountPerWallet();
+
+      //distribute
+      const tx = await leftOverTreasury.distributeLeftOverToWallet(
+        testWallet1.address
+      );
+
+      await expect(tx)
+        .to.emit(leftOverTreasury, 'LeftOverDistributed')
+        .withArgs(testWallet1.address, amountPerWallet);
+
+      //check balance after distribution
+      const balanceAfter = await hecToken.balanceOf(testWallet1.address);
+      expect(balanceAfter).to.be.equal(balanceBefore.add(amountPerWallet));
+    });
+
+    it('Should Fail -  Distribute Leftover to Unauthorized Wallet', async function () {
+      await expect(
+        leftOverTreasury.distributeLeftOverToWallet(unRegisterWallet.address)
+      ).to.be.revertedWith('UNAUTHORIZED_RECIPIENT');
+    });
+    it('Should Fail -  Already received leftover', async function () {
+      await expect(
+        leftOverTreasury.distributeLeftOverToWallet(testWallet1.address)
+      ).to.be.revertedWith('WALLET_ALREADY_RECEIVED_LEFTOVER');
+    });
+    it('Should Pass -  Distribute Leftover to many Wallets', async function () {
+      //get balance of testWallet1
+      const balanceBeforeWallet2 = await hecToken.balanceOf(
+        testWallet2.address
+      );
+      const balanceBeforeWallet3 = await hecToken.balanceOf(
+        testWallet3.address
+      );
+      //get balance of treasury
+      const treasuryBalance = await hecToken.balanceOf(
+        leftOverTreasury.address
+      );
+      const amountPerWallet = await leftOverTreasury.amountPerWallet();
+
+      const wallets = [testWallet2.address, testWallet3.address];
+
+      //distribute
+      const tx = await leftOverTreasury.distributeLeftOverToWallets(wallets);
+
+      const balanceAfterWallet2 = await hecToken.balanceOf(testWallet2.address);
+
+      const balanceAfterWallet3 = await hecToken.balanceOf(testWallet3.address);
+
+      await expect(balanceAfterWallet2).to.be.equal(
+        balanceBeforeWallet2.add(amountPerWallet)
+      );
+
+      await expect(balanceAfterWallet3).to.be.equal(
+        balanceBeforeWallet3.add(amountPerWallet)
+      );
+    });
+  });
+
+  describe('#Uniswap - add/remove liquidity', async () => {
+    it('Should Pass - addLiquidity', async function () {
+      const hecDecimals = await hecToken.decimals();
+      const torDecimals = await torToken.decimals();
+      const torHECDecimals = await torHEC.decimals();
+
+      const amountTokenDesired1 = utils
+        .parseEther('10')
+        .div(BigNumber.from(10).pow(hecDecimals));
+      const amountTokenDesired2 = utils
+        .parseEther('5')
+        .div(BigNumber.from(10).pow(torDecimals >= 18 ? 0 : torDecimals));
+
+      await hecToken.mint(deployer.address, amountTokenDesired1);
+      await torToken.mint(deployer.address, amountTokenDesired2);
+
+      await hecToken.approve(uniswapV2Router.address, utils.parseEther('10'));
+      await torToken.approve(uniswapV2Router.address, utils.parseEther('10'));
+
+      const torBalanceBefore = await torToken.balanceOf(deployer.address);
+      const hecBalanceBefore = await hecToken.balanceOf(deployer.address);
+      const torHecBalanceBefore = await torHEC.balanceOf(deployer.address);
+
+      const tx = await uniswapV2Router.addLiquidity(
+        hecToken.address,
+        torToken.address,
+        torHEC.address,
+        amountTokenDesired1,
+        amountTokenDesired2,
+        deployer.address
+      );
+
+      const torBalanceAfter = await torToken.balanceOf(deployer.address);
+      const hecBalanceAfter = await hecToken.balanceOf(deployer.address);
+      const torHecBalanceAfter = await torHEC.balanceOf(deployer.address);
+
+      expect(torBalanceAfter).to.be.equal(
+        torBalanceBefore.sub(amountTokenDesired2)
+      );
+      expect(hecBalanceAfter).to.be.equal(
+        hecBalanceBefore.sub(amountTokenDesired1)
+      );
+    });
+
+    it('Should Pass - removeLiquidity', async function () {
+      const hecDecimals = await hecToken.decimals();
+      const torDecimals = await torToken.decimals();
+      const torHECDecimals = await torHEC.decimals();
+      const torHecBalance = await torHEC.balanceOf(deployer.address);
+
+      const torBalanceBefore = await torToken.balanceOf(deployer.address);
+      const hecBalanceBefore = await hecToken.balanceOf(deployer.address);
+      const torHecBalanceBefore = await torHEC.balanceOf(deployer.address);
+
+      await torHEC.approve(uniswapV2Router.address, utils.parseEther('100000'));
+
+      const tx = await uniswapV2Router.removeLiquidity(
+        hecToken.address,
+        torToken.address,
+        torHEC.address,
+        torHecBalance,
+        deployer.address
+      );
+
+      const torBalanceAfter = await torToken.balanceOf(deployer.address);
+      const hecBalanceAfter = await hecToken.balanceOf(deployer.address);
+      const torHecBalanceAfter = await torHEC.balanceOf(deployer.address);
+
+      expect(torHecBalanceAfter).to.be.equal(0);
     });
   });
 });
