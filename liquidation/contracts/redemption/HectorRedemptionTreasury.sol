@@ -16,6 +16,7 @@ error INVALID_ADDRESS();
 error INVALID_AMOUNT();
 error INVALID_TOKEN();
 error INVALID_RECIPIENT();
+error INSUFFICIENT_FUND();
 
 contract HectorRedemptionTreasury is LockAccessControl, Pausable {
     using SafeERC20 for IERC20;
@@ -61,7 +62,8 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
         if (fnft.ownerOf(rnftid) != _to || fnft.balanceOf(_to) == 0) revert INVALID_RECIPIENT();
 
         uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance < _amount) revert INVALID_AMOUNT();
+
+        if (balance < _amount) revert INSUFFICIENT_FUND();
 
         IERC20(_token).safeTransfer(_to, _amount);
 
@@ -82,7 +84,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
                 IERC20(token).safeTransfer(owner(), balance);
             }
 
-            tokensSet.remove(token);
+            bool status = tokensSet.remove(token);
         }
     }
 
@@ -95,7 +97,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
         if (_token == address(0)) revert INVALID_ADDRESS();
         if (_amount == 0) revert INVALID_AMOUNT();
 
-        tokensSet.add(_token);
+        bool status = tokensSet.add(_token);
 
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 

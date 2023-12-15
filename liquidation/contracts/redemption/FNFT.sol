@@ -21,7 +21,7 @@ contract RedemptionNFT is
 {
     using Counters for Counters.Counter;
 
-    string private constant NAME = 'Hector Redemption NFT';
+    string private constant NAME = 'HRNFT';
     string private constant SYMBOL = 'HRNFT';
 
     bytes32 public constant PAUSER_ROLE = keccak256('PAUSER_ROLE');

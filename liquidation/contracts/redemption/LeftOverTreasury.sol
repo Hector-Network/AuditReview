@@ -16,17 +16,16 @@ error INVALID_WALLET();
 error INVALID_BALANCE();
 error INVALID_RECIPIENT();
 error UNAUTHORIZED_RECIPIENT();
+error UNAUTHORIZED_TOKEN();
+error WALLET_ALREADY_RECEIVED_LEFTOVER();
+error NO_WALLETS_TO_DISTRIBUTE();
 
-contract TokenVault is
-    ITokenVault,
-    LockAccessControl,
+contract LeftOverTreasury is
+    LockAccessControl, 
     Pausable
 {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
-
-    /// @notice rnft configuration
-    mapping(uint256 => RedeemNFTConfig) public rnfts;
 
     // @notice address wallets => received tokens
     mapping(address => uint256) public recipientTokens;
@@ -34,9 +33,24 @@ contract TokenVault is
     // @notice list of wallets qualified to receive tokens
     EnumerableSet.AddressSet private eligibleWallets;
 
+     // @notice list of wallets received leftover distribution
+    EnumerableSet.AddressSet private leftoverWallets;
+
+    /// @notice Deposited tokens set
+    EnumerableSet.AddressSet private tokensSet;
+
+    uint256 public amountPerWallet;
+
+    event LeftOverDistributed(address indexed who, uint256 amount);
+
     /* ======= CONSTRUCTOR ======= */
 
-   constructor(address provider) LockAccessControl(provider) {}
+    constructor(address _rewardToken, address provider) LockAccessControl(provider) {
+        if (_rewardToken == address(0)) revert INVALID_ADDRESS();
+        bool status = tokensSet.add(_rewardToken);
+
+        amountPerWallet = 0;
+    }
 
     ///////////////////////////////////////////////////////
     //               MANAGER CALLED FUNCTIONS            //
@@ -55,146 +69,90 @@ contract TokenVault is
     ///////////////////////////////////////////////////////
 
     /**
-     * @notice Mint a new rnft to acknowledge receipt of user's tokens
-     * @param recipient The address to receive the rnft
-     * @param rnftConfig The rnft configuration
-     * @return The rnft ID
+        @notice Deposit token to treasury for leftover
+        @param _amount  amount to deposit
      */
-    function mint(address recipient, RedeemNFTConfig memory rnftConfig)
-        external
-        whenNotPaused
-        onlyModerator
-        returns (uint256)
-    {
-        if (recipient == address(0)) revert INVALID_ADDRESS();
-        if (rnftConfig.redeemableAmount == 0 ||
-            (rnftConfig.eligibleTORAmount == 0 && 
-            rnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
+    function deposit(uint256 _amount) external whenNotPaused {
+        if (_amount == 0) revert INVALID_AMOUNT();
+        uint256 totalWallets = eligibleWallets.length();
+        if (totalWallets == 0) revert NO_WALLETS_TO_DISTRIBUTE();
 
-        uint256 rnftId = getRNFT().mint(recipient);
-        rnfts[rnftId] = rnftConfig;
+        address token = tokensSet.at(0);
 
-        emit RedeemNFTMinted(
-            recipient,
-            rnftId,
-            rnftConfig.eligibleTORAmount,
-            rnftConfig.eligibleHECAmount, 
-            rnftConfig.redeemableAmount
-        );
+        IERC20(token).approve(address(this), _amount);
 
-        return rnftId;
+        IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
+
+        amountPerWallet = _amount / totalWallets;
     }
-  
+
     /**
-     * @notice Withdraw a rnft and redeem the user's tokens
-     * @param recipient The address to receive the rnft
-     * @param rnftId The rnft ID
-     */
-    function withdraw(address recipient, uint256 rnftId)
-        external
-        whenNotPaused
-        onlyModerator
-    {
-        IRedemptionNFT rnft = getRNFT();
+        @notice withdraw all tokens
+     */    
+    function withdrawAll() external onlyModerator {
+        uint256 length = tokensSet.length();
 
-        if (rnft.ownerOf(rnftId) != recipient || rnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
+        for (uint256 i = 0; i < length; i++) {
+            address token = tokensSet.at(0);
+            uint256 balance = IERC20(token).balanceOf(address(this));
 
-        RedeemNFTConfig memory rnftConfig = rnfts[rnftId];
-
-        getTreasury().transferRedemption(
-            rnftId,
-            rnftConfig.redeemableToken,
-            recipient,
-            rnftConfig.redeemableAmount
-        );
-
-        rnft.burnFromOwner(rnftId, recipient); 
-
-        delete rnfts[rnftId];
-
-        emit RedeemNFTWithdrawn(recipient, rnftId, rnftConfig.redeemableAmount);
+            if (balance > 0) {
+                IERC20(token).safeTransfer(owner(), balance);
+            }
+        }
     }
+    
 
     /**
      * @notice Mint & Withdraw from one recipient
      * @param recipient The address to receive the rnft
-     * @param redeemAmount The amount to redeem
      */
-    function mintWithdraw(address recipient, uint256 redeemAmount)  external
+    function distributeLeftOverToWallet(address recipient) external
+        onlyModerator
         whenNotPaused
-        returns (uint256) {
+    {
 
-        uint256 rnftId = _mintWithdraw(recipient, redeemAmount);
-        return rnftId;
+        _distributeLeftOverToWallet(recipient);
     }
 
     /**
-     * @notice Mint & Withdraw from a list of recipients
+     * @notice Send leftover to a list of recipients
      * @param recipients The address to receive the rnft
-     * @param amounts amount to be redeemed
      */
-    function mintWithdraws(address[] memory recipients, uint256[] memory amounts)  external
+    function distributeLeftOverToWallets(address[] memory recipients)  external
         whenNotPaused
         onlyModerator
     {
         uint256 totalRecipients = recipients.length;
-        uint256 totalConfig = amounts.length;
-
-        if (totalRecipients != totalConfig) revert INVALID_PARAM();
-
         for (uint256 i = 0; i < totalRecipients; i++) {
             address recipient = recipients[i];
-            uint256 redeemAmount = amounts[i];
-            _mintWithdraw(recipient, redeemAmount);
+            _distributeLeftOverToWallet(recipient);
         }   
     }
 
     /**
         * @notice Mint & Withdraw from a recipient
         * @param recipient The address to receive the rnft
-        * @param redeemAmount The amount to redeem
      */
-    function _mintWithdraw(address recipient, uint256 redeemAmount)  internal
-        returns (uint256) {
+    function _distributeLeftOverToWallet(address recipient)  internal
+    {
 
         if (recipient == address(0)) revert INVALID_ADDRESS();
-        if (redeemAmount == 0) revert INVALID_AMOUNT();
         if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
+        if (leftoverWallets.contains(recipient)) revert WALLET_ALREADY_RECEIVED_LEFTOVER();
 
-        RedeemNFTConfig memory rnftConfig = RedeemNFTConfig({
-            eligibleTORAmount: 1,
-            eligibleHECAmount: 1,
-            redeemableAmount: redeemAmount,
-            redeemableToken: getRedeemToken()
-        });
+        recipientTokens[recipient] += amountPerWallet;
 
-        uint256 rnftId = getRNFT().mint(recipient);
-        rnfts[rnftId] = rnftConfig;
+        bool status = leftoverWallets.add(recipient);
 
-        emit RedeemNFTMinted(
-            recipient,
-            rnftId,
-            rnftConfig.eligibleTORAmount,
-            rnftConfig.eligibleHECAmount, 
-            rnftConfig.redeemableAmount
-        );
+        if (!status) revert INVALID_WALLET();
 
-        IRedemptionNFT rnft = getRNFT();
+        address token = tokensSet.at(0);
+        if (token == address(0)) revert INVALID_ADDRESS();
 
-        getTreasury().transferRedemption(
-            rnftId,
-            rnftConfig.redeemableToken,
-            recipient,
-            rnftConfig.redeemableAmount
-        );
+        IERC20(token).safeTransferFrom(address(this), recipient, amountPerWallet);
 
-        recipientTokens[recipient] += redeemAmount;
-
-        rnft.burnFromOwner(rnftId, recipient); 
-
-        delete rnfts[rnftId];
-
-        return rnftId;
+        emit LeftOverDistributed(recipient, amountPerWallet);
     }
 
      /**
@@ -203,6 +161,14 @@ contract TokenVault is
      */
     function addEligibleWallet(address wallet) external onlyModerator {
         _addEligibleWallet(wallet);
+    }
+
+     /**
+        @notice add wallet to leftover wallet
+        @param wallet Wallet address
+     */
+    function addLeftOverWallet(address wallet) external onlyModerator {
+        _addLeftOverWallet(wallet);
     }
 
     /**
@@ -224,12 +190,27 @@ contract TokenVault is
             status = eligibleWallets.add(wallet);
     }
 
+    function _addLeftOverWallet(address wallet) internal {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        bool status;
+        if (!leftoverWallets.contains(wallet)) 
+            status = leftoverWallets.add(wallet);
+    }
+
     /**
         @notice remove wallet from eligibleWallets
         @param wallet Wallet address
      */
     function removeEligibleWallet(address wallet) external onlyModerator {
         _removeEligibleWallet(wallet);
+    }
+
+     /**
+        @notice remove wallet from leftover
+        @param wallet Wallet address
+     */
+    function removeLeftOverWallet(address wallet) external onlyModerator {
+        _removeLeftOverWallet(wallet);
     }
 
     /**
@@ -252,31 +233,41 @@ contract TokenVault is
 
     }
 
+    function _removeLeftOverWallet(address wallet) internal {
+        if (wallet == address(0)) revert INVALID_ADDRESS();
+        bool status;
+        if (leftoverWallets.contains(wallet)) 
+            status = leftoverWallets.remove(wallet);
+
+    }
+
+    function updateAmountPerWallet(uint256 _amount) external onlyModerator {
+        amountPerWallet = _amount;
+    }
+
     ///////////////////////////////////////////////////////
     //                  VIEW FUNCTIONS                   //
     ///////////////////////////////////////////////////////
 
-    /**
-     * @notice Returns the rnft configuration
-     * @param rnftId The rnft ID
-     * @return The rnft configuration
-     */
-    function getRNFT(uint256 rnftId)
-        external
-        view
-        returns (RedeemNFTConfig memory)
-    {
-        return rnfts[rnftId];
-    }
 
      /// @notice Returns the length of eligible wallets
 	function getEligibleWalletsCount() external view returns (uint256) {
 		return eligibleWallets.length();
 	}
 
+     /// @notice Returns the length of leftover wallets
+	function getLeftOverWalletsCount() external view returns (uint256) {
+		return leftoverWallets.length();
+	}
+
     /// @notice Returns all eligible wallets
     function getAllEligibleWallets() external view returns (address[] memory) {
         return eligibleWallets.values();
+    }
+
+    /// @notice Returns all eligible wallets
+    function getAllLeftOverWallets() external view returns (address[] memory) {
+        return leftoverWallets.values();
     }
 
     /**
@@ -286,6 +277,15 @@ contract TokenVault is
      */
 	function isRegisteredWallet(address _walletAddress) external view returns (bool) {
 		return eligibleWallets.contains(_walletAddress);
+	}
+
+    /**
+        @notice return if wallet has received leftover
+        @param _walletAddress address
+        @return bool
+     */
+	function isLeftOverDistributed(address _walletAddress) external view returns (bool) {
+		return leftoverWallets.contains(_walletAddress);
 	}
 
     /// @notice Returns all wallet addresses from a range

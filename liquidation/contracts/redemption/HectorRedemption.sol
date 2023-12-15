@@ -81,7 +81,7 @@ contract HectorRedemption is
         //check for duplicate
         if (_token == address(0) || eligibleTokens.contains(_token)) revert INVALID_WALLET();
 
-        eligibleTokens.add(_token);
+        bool status = eligibleTokens.add(_token);
 
 		emit AddEligibleToken(_token);
 	}
@@ -102,7 +102,7 @@ contract HectorRedemption is
         //check for duplicate
         if (_token == address(0) || !eligibleTokens.contains(_token)) revert INVALID_PARAM();
 
-        eligibleTokens.remove(_token);
+        bool status = eligibleTokens.remove(_token);
 
 		emit RemoveEligibleToken(_token);
 	}
@@ -130,8 +130,9 @@ contract HectorRedemption is
         if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert UNAUTHORIZED_RECIPIENT();
 
+        bool status;
         if (!redeemedWallets.contains(msg.sender)) 
-            redeemedWallets.add(msg.sender);
+            status = redeemedWallets.add(msg.sender);
 
         //get whitelist token
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
