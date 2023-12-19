@@ -27,8 +27,6 @@ interface ITokenVault {
         uint256 redeemableAmount; // The amount of HEC tokens exchanged from user's tokens        
     }
 
-    function getRNFT(uint256) external view returns (RedeemNFTConfig memory);
-
     function mint(address, RedeemNFTConfig memory)
         external
         returns (uint256);

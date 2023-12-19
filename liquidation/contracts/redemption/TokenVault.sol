@@ -118,12 +118,12 @@ contract TokenVault is
     /**
      * @notice Mint & Withdraw from one recipient
      * @param recipient The address to receive the rnft
-     * @param redeemAmount The amount to redeem
      */
-    function mintWithdraw(address recipient, uint256 redeemAmount)  external
+    function mintWithdraw(address recipient)  external
         whenNotPaused
         returns (uint256) {
 
+        uint256 redeemAmount = recipientTokens[recipient];
         uint256 rnftId = _mintWithdraw(recipient, redeemAmount);
         return rnftId;
     }
@@ -188,8 +188,6 @@ contract TokenVault is
             rnftConfig.redeemableAmount
         );
 
-        recipientTokens[recipient] += redeemAmount;
-
         rnft.burnFromOwner(rnftId, recipient); 
 
         delete rnfts[rnftId];
@@ -201,27 +199,33 @@ contract TokenVault is
         @notice add wallet to eligibleWallets
         @param wallet Wallet address
      */
-    function addEligibleWallet(address wallet) external onlyModerator {
-        _addEligibleWallet(wallet);
+    function addEligibleWallet(address wallet, uint256 _eligibleAmount) external onlyModerator {
+        _addEligibleWallet(wallet, _eligibleAmount);
     }
 
     /**
         @notice add wallets to eligibleWallets
         @param wallets Wallet addresses
      */
-    function addEligibleWallets(address[] memory wallets) external onlyModerator {
+    function addEligibleWallets(address[] memory wallets, uint256[] memory eligibleAmounts) external onlyModerator {
         uint256 length = wallets.length;
+        uint256 lengthAmounts = eligibleAmounts.length;
+        if (length != lengthAmounts) revert INVALID_PARAM();
         for (uint256 i = 0; i < length; i++) {
             address wallet = wallets[i];
-            _addEligibleWallet(wallet);
+            uint256 _eligibleAmount = eligibleAmounts[i];
+            _addEligibleWallet(wallet, _eligibleAmount);
         }
     }
 
-    function _addEligibleWallet(address wallet) internal {
+    function _addEligibleWallet(address wallet, uint256 _eligibleAmount) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (!eligibleWallets.contains(wallet)) 
+        if (!eligibleWallets.contains(wallet)) {
             status = eligibleWallets.add(wallet);
+            if (!status) revert INVALID_WALLET();
+            recipientTokens[wallet] += _eligibleAmount;
+        }
     }
 
     /**
@@ -247,27 +251,15 @@ contract TokenVault is
     function _removeEligibleWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (eligibleWallets.contains(wallet)) 
+        if (eligibleWallets.contains(wallet)) {
             status = eligibleWallets.remove(wallet);
-
+            if (!status) revert INVALID_WALLET();
+        }
     }
 
     ///////////////////////////////////////////////////////
     //                  VIEW FUNCTIONS                   //
     ///////////////////////////////////////////////////////
-
-    /**
-     * @notice Returns the rnft configuration
-     * @param rnftId The rnft ID
-     * @return The rnft configuration
-     */
-    function getRNFT(uint256 rnftId)
-        external
-        view
-        returns (RedeemNFTConfig memory)
-    {
-        return rnfts[rnftId];
-    }
 
      /// @notice Returns the length of eligible wallets
 	function getEligibleWalletsCount() external view returns (uint256) {

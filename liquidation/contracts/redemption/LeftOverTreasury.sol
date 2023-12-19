@@ -48,6 +48,7 @@ contract LeftOverTreasury is
     constructor(address _rewardToken, address provider) LockAccessControl(provider) {
         if (_rewardToken == address(0)) revert INVALID_ADDRESS();
         bool status = tokensSet.add(_rewardToken);
+        if (!status) revert INVALID_PARAM();
 
         amountPerWallet = 0;
     }
