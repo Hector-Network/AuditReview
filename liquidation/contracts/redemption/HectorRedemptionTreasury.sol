@@ -85,6 +85,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
             }
 
             bool status = tokensSet.remove(token);
+            if (!status) revert INVALID_ADDRESS();
         }
     }
 
@@ -98,6 +99,7 @@ contract HectorRedemptionTreasury is LockAccessControl, Pausable {
         if (_amount == 0) revert INVALID_AMOUNT();
 
         bool status = tokensSet.add(_token);
+        if (!status) revert INVALID_ADDRESS();
 
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 

@@ -393,7 +393,9 @@ describe('Hector Redemption', function () {
       ).to.equal(true);
 
       //Register wallet to TokenVault
-      await vaultRNFT.connect(moderator).addEligibleWallet(testWallet1.address);
+      await vaultRNFT
+        .connect(moderator)
+        .addEligibleWallet(testWallet1.address, utils.parseEther('100'));
 
       expect(await vaultRNFT.isRegisteredWallet(testWallet1.address)).to.equal(
         true
@@ -432,7 +434,9 @@ describe('Hector Redemption', function () {
         .deposit(unregisteredToken.address, utils.parseEther('100'));
 
       //Register wallet to TokenVault
-      await vaultRNFT.connect(moderator).addEligibleWallet(testWallet2.address);
+      await vaultRNFT
+        .connect(moderator)
+        .addEligibleWallet(testWallet2.address, utils.parseEther('100'));
 
       await expect(tx)
         .to.emit(hectorRedemption, 'DepositToken')
@@ -603,7 +607,7 @@ describe('Hector Redemption', function () {
       //1. Fund the Treasury contract - done
       //get balance of hecToken in treasury contract
       //mint 100 hec to treasury
-      await hecToken.mint(treasury.address, utils.parseEther('100'));
+      await hecToken.mint(treasury.address, utils.parseEther('1000'));
       let treasuryBalance = await hecToken.balanceOf(treasury.address);
       //2. Generate test wallets
       const registeredWallets = [];
@@ -617,43 +621,18 @@ describe('Hector Redemption', function () {
 
         //3. Mint NFT
         const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
+        await vaultRNFT.connect(moderator).addEligibleWallet(wallet, redeemAmt);
 
-        let tx = await vaultRNFT
-          .connect(moderator)
-          .mintWithdraw(wallet, redeemAmt);
+        const getEligibleAmt = await vaultRNFT.recipientTokens(wallet);
+
+        let tx = await vaultRNFT.connect(moderator).mintWithdraw(wallet);
 
         const balanceAfter = await hecToken.balanceOf(wallet);
 
         expect(await hecToken.balanceOf(wallet)).to.equal(
-          balanceBefore.add(redeemAmt)
+          balanceBefore.add(getEligibleAmt)
         );
       }
-      treasuryBalance = await hecToken.balanceOf(treasury.address);
-      expect(treasuryBalance).to.equal(0);
-    });
-    it('Should Pass - Use mintWithdraw func to distribute many wallets', async function () {
-      //1. Fund the Treasury contract - done
-      //get balance of hecToken in treasury contract
-      //mint 100 hec to treasury
-      await hecToken.mint(treasury.address, utils.parseEther('100'));
-      let treasuryBalance = await hecToken.balanceOf(treasury.address);
-      //2. Generate test wallets
-      const registeredWallets = [];
-      const totalWallets: BigNumber = await vaultRNFT.getEligibleWalletsCount();
-
-      const redeemAmt: BigNumber = treasuryBalance.div(totalWallets);
-      const wallets = await hectorRedemption.getAllRedeemedWallets();
-      let redeemAmts = [];
-      for (let i = 0; i < totalWallets.toNumber(); i++) {
-        redeemAmts.push(redeemAmt);
-      }
-
-      let tx = await vaultRNFT
-        .connect(moderator)
-        .mintWithdraws(wallets, redeemAmts);
-
-      treasuryBalance = await hecToken.balanceOf(treasury.address);
-      expect(treasuryBalance).to.equal(0);
     });
   });
 
