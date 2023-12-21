@@ -17,6 +17,7 @@ error INVALID_BALANCE();
 error INVALID_RECIPIENT();
 error UNAUTHORIZED_RECIPIENT();
 error BLACKLISTED_RECIPIENT();
+error DUPLICATED_NFT();
 
 contract TokenVault is
     ITokenVault,
@@ -70,13 +71,17 @@ contract TokenVault is
         onlyModerator
         returns (uint256)
     {
+        IRedemptionNFT rnft = getRNFT();
+
         if (recipient == address(0)) revert INVALID_ADDRESS();
+        if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
         if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
         if (rnftConfig.redeemableAmount == 0 ||
             (rnftConfig.eligibleTORAmount == 0 && 
             rnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
+        if (rnft.balanceOf(recipient) > 0) revert DUPLICATED_NFT();
 
-        uint256 rnftId = getRNFT().mint(recipient);
+        uint256 rnftId = rnft.mint(recipient);
         rnfts[rnftId] = rnftConfig;
 
         emit RedeemNFTMinted(
@@ -103,7 +108,9 @@ contract TokenVault is
         IRedemptionNFT rnft = getRNFT();
 
         if (rnft.ownerOf(rnftId) != recipient || rnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
+        if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
         if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
+        if (rnft.balanceOf(recipient) > 1) revert DUPLICATED_NFT();
 
         RedeemNFTConfig memory rnftConfig = rnfts[rnftId];
 
@@ -167,6 +174,7 @@ contract TokenVault is
         if (redeemAmount == 0) revert INVALID_AMOUNT();
         if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
         if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
+        if (getRNFT().balanceOf(recipient) > 1) revert DUPLICATED_NFT();
 
         RedeemNFTConfig memory rnftConfig = RedeemNFTConfig({
             eligibleTORAmount: 1,

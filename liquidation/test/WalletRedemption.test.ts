@@ -26,6 +26,7 @@ describe('Hector Redemption', function () {
   let testWallet1: SignerWithAddress,
     testWallet2: SignerWithAddress,
     testWallet3: SignerWithAddress,
+    testWallet4: SignerWithAddress,
     unRegisterWallet: SignerWithAddress;
 
   let hecToken: RewardToken2,
@@ -62,6 +63,7 @@ describe('Hector Redemption', function () {
       testWallet1,
       testWallet2,
       testWallet3,
+      testWallet4,
       unRegisterWallet,
     ] = await ethers.getSigners();
 
@@ -193,12 +195,12 @@ describe('Hector Redemption', function () {
     walletAddresses = [];
     totalWallets = 20;
 
-    for (let i = 0; i < totalWallets; i++) {
-      const wallet = ethers.Wallet.createRandom();
-      walletAddresses.push(wallet.address);
-      //mint tokens to the wallet
-      await hecToken.mint(wallet.address, utils.parseEther('1000000'));
-    }
+    // for (let i = 0; i < totalWallets; i++) {
+    //   const wallet = ethers.Wallet.createRandom();
+    //   walletAddresses.push(wallet.address);
+    //   //mint tokens to the wallet
+    //   await hecToken.mint(wallet.address, utils.parseEther('1000000'));
+    // }
 
     await hecToken.mint(deployer.address, utils.parseEther('1000000'));
   });
@@ -304,6 +306,11 @@ describe('Hector Redemption', function () {
 
   describe('#Token Vault', async () => {
     it('Should Pass - Mint', async function () {
+      await vaultRNFT.addEligibleWallet(
+        testWallet4.address,
+        utils.parseEther('10')
+      );
+
       const fnftConfig = {
         eligibleTORAmount: 100,
         eligibleHECAmount: 100,
@@ -313,19 +320,33 @@ describe('Hector Redemption', function () {
 
       let tx = await vaultRNFT
         .connect(moderator)
-        .mint(registeredWallet.address, fnftConfig);
+        .mint(testWallet4.address, fnftConfig);
 
       await expect(tx)
         .to.emit(vaultRNFT, 'RedeemNFTMinted')
         .withArgs(
-          registeredWallet.address,
+          testWallet4.address,
           1,
           fnftConfig.eligibleTORAmount,
           fnftConfig.eligibleHECAmount,
           fnftConfig.redeemableAmount
         );
 
-      expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('2');
+      expect(await RNFT.balanceOf(testWallet4.address)).to.equal('1');
+    });
+    it('Should Fail - Duplicated NFT Per Wallet', async function () {
+      const fnftConfig = {
+        eligibleTORAmount: 100,
+        eligibleHECAmount: 100,
+        redeemableToken: hecToken.address,
+        redeemableAmount: utils.parseEther('10'),
+      };
+
+      const balanceBefore = await RNFT.balanceOf(testWallet4.address);
+
+      await expect(
+        vaultRNFT.connect(moderator).mint(testWallet4.address, fnftConfig)
+      ).to.be.revertedWith('DUPLICATED_NFT');
     });
     it('Should Fail - Mint with Blacklisted Wallet', async function () {
       let fnftConfig = {
@@ -342,9 +363,16 @@ describe('Hector Redemption', function () {
         totalBlacklistedWalletsBefore.add(1)
       );
 
+      await vaultRNFT.addEligibleWallet(
+        unRegisterWallet.address,
+        utils.parseEther('10')
+      );
+
       await expect(
         vaultRNFT.connect(moderator).mint(unRegisterWallet.address, fnftConfig)
       ).to.be.revertedWith('BLACKLISTED_RECIPIENT');
+
+      await vaultRNFT.removeEligibleWallet(unRegisterWallet.address);
     });
     it('Should Fail - Mint Fails with Zero Amount', async function () {
       let fnftConfig = {
@@ -354,16 +382,23 @@ describe('Hector Redemption', function () {
         redeemableAmount: utils.parseEther('0'),
       };
 
+      await vaultRNFT.addEligibleWallet(
+        registeredWallet.address,
+        utils.parseEther('10')
+      );
+
       await expect(
         vaultRNFT.connect(moderator).mint(registeredWallet.address, fnftConfig)
       ).to.be.revertedWith('INVALID_AMOUNT');
+
+      await vaultRNFT.removeEligibleWallet(registeredWallet.address);
     });
     it('Should Pass - Withdraw', async function () {
-      let tx = await vaultRNFT.withdraw(registeredWallet.address, 1);
+      let tx = await vaultRNFT.withdraw(testWallet4.address, 1);
 
       await expect(tx)
         .to.emit(vaultRNFT, 'RedeemNFTWithdrawn')
-        .withArgs(registeredWallet.address, 1, utils.parseEther('10'));
+        .withArgs(testWallet4.address, 1, utils.parseEther('10'));
 
       // expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('1');
 
@@ -377,9 +412,16 @@ describe('Hector Redemption', function () {
       ).to.be.revertedWith('INVALID_RECIPIENT');
     });
     it('Should Fail - Unable to Withdraw - Receipt Not Found', async function () {
+      await vaultRNFT.addEligibleWallet(
+        registeredWallet.address,
+        utils.parseEther('10')
+      );
+
       await expect(
         vaultRNFT.withdraw(registeredWallet.address, 0)
       ).to.be.revertedWith('INVALID_ADDRESS');
+
+      await vaultRNFT.removeEligibleWallet(registeredWallet.address);
     });
   });
 
