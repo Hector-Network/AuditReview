@@ -22,6 +22,7 @@ error INVALID_WALLET();
 error INVALID_BALANCE();
 error REDEMPTION_TIME_EXPIRES();
 error UNAUTHORIZED_RECIPIENT();
+error BLACKLISTED_RECIPIENT();
 
 contract HectorRedemption is
     IRedemptionWallet,
@@ -42,6 +43,9 @@ contract HectorRedemption is
 
     /// @notice A list of wallet addresses tracking who redeems tokens
     EnumerableSet.AddressSet private redeemedWallets;
+
+    /// @notice A list of blacklisted wallets
+    EnumerableSet.AddressSet private blacklistedWallets;
 
     /// @notice last day to claim
     uint256 public lastDayToClaim; 
@@ -108,6 +112,29 @@ contract HectorRedemption is
 
 		emit RemoveEligibleToken(_token);
 	}
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _addBlacklistWallet(address _wallet) private {
+        if (_wallet == address(0) || blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.add(_wallet);
+        if (!status) revert INVALID_PARAM();
+	}
+
+     /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _removeBlacklistWallet(address _wallet) private {
+        //check for duplicate
+        if (_wallet == address(0) || !blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.remove(_wallet);
+        if (!status) revert INVALID_PARAM();
+	}
    
 
     /* ======== POLICY FUNCTIONS ======== */
@@ -131,6 +158,7 @@ contract HectorRedemption is
         if (amount <= 0) revert INVALID_AMOUNT();
         if (!eligibleTokens.contains(token)) revert INVALID_PARAM();
         if (!registrationWallet.isRegisteredWallet(msg.sender)) revert UNAUTHORIZED_RECIPIENT();
+        if (blacklistedWallets.contains(msg.sender)) revert BLACKLISTED_RECIPIENT();
 
         bool status;
         if (!redeemedWallets.contains(msg.sender)) {
@@ -286,6 +314,49 @@ contract HectorRedemption is
      */
 	function isRegisteredToken(address _tokenAddress) external view returns (bool) {
 		return eligibleTokens.contains(_tokenAddress);
+	}
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function addBlacklistWallets(address[] memory _wallets) external onlyModerator {
+        uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _addBlacklistWallet(_wallets[i]);
+        }
+	}
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function removeBlacklistWallet(address[] memory _wallets) external onlyModerator {
+       uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _removeBlacklistWallet(_wallets[i]);
+        }
+	}
+
+     /// @notice Returns all blacklisted wallets
+    function getAllBlackListed() external view returns (address[] memory) {
+        return blacklistedWallets.values();
+    }
+
+    /**
+        @notice return if recipient is blaclisted
+        @param recipient address
+        @return bool
+     */
+	function isBlacklisted(address recipient) external view returns (bool) {
+		return blacklistedWallets.contains(recipient);
+	}
+
+    /// @notice Returns the count of redeemed wallets
+	function getBlacklistCount() external view returns (uint256) {
+		return blacklistedWallets.length();
 	}
 
 }

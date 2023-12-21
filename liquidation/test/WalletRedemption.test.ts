@@ -327,6 +327,25 @@ describe('Hector Redemption', function () {
 
       expect(await RNFT.balanceOf(registeredWallet.address)).to.equal('2');
     });
+    it('Should Fail - Mint with Blacklisted Wallet', async function () {
+      let fnftConfig = {
+        eligibleTORAmount: utils.parseEther('0'),
+        eligibleHECAmount: utils.parseEther('0'),
+        redeemableToken: hecToken.address,
+        redeemableAmount: utils.parseEther('0'),
+      };
+
+      const totalBlacklistedWalletsBefore = await vaultRNFT.getBlacklistCount();
+      await vaultRNFT.addBlacklistWallets([unRegisterWallet.address]);
+
+      expect(await vaultRNFT.getBlacklistCount()).to.equal(
+        totalBlacklistedWalletsBefore.add(1)
+      );
+
+      await expect(
+        vaultRNFT.connect(moderator).mint(unRegisterWallet.address, fnftConfig)
+      ).to.be.revertedWith('BLACKLISTED_RECIPIENT');
+    });
     it('Should Fail - Mint Fails with Zero Amount', async function () {
       let fnftConfig = {
         eligibleTORAmount: utils.parseEther('0'),
@@ -453,6 +472,7 @@ describe('Hector Redemption', function () {
         totalEligibleTokensBefore
       );
     });
+
     it('Failed Deposit Tx when paused', async function () {
       const txPause = await hectorRedemption.pause();
 
@@ -501,6 +521,21 @@ describe('Hector Redemption', function () {
 
       const afterBalance = await hecToken.balanceOf(hectorRedemption.address);
       expect(afterBalance).to.be.equal(0);
+    });
+
+    it('Should Fail - Deposit with Blacklisted Wallet', async function () {
+      const totalBlacklistedWalletsBefore =
+        await hectorRedemption.getBlacklistCount();
+      await hectorRedemption.addBlacklistWallets([testWallet1.address]);
+      expect(await hectorRedemption.getBlacklistCount()).to.equal(
+        totalBlacklistedWalletsBefore.add(1)
+      );
+
+      await expect(
+        hectorRedemption
+          .connect(testWallet1)
+          .deposit(hecToken.address, utils.parseEther('100'))
+      ).to.be.revertedWith('BLACKLISTED_RECIPIENT');
     });
 
     it('Should Fail - Deposit with Invalid Wallet', async function () {
@@ -657,6 +692,7 @@ describe('Hector Redemption', function () {
         utils.parseEther('1000000')
       );
     });
+
     it('Should Pass -  WithdrawAll', async function () {
       const _owner = await treasury.owner();
       let balanceBefore = await hecToken.balanceOf(_owner);
@@ -703,6 +739,23 @@ describe('Hector Redemption', function () {
       await expect(
         leftOverTreasury.distributeLeftOverToWallet(unRegisterWallet.address)
       ).to.be.revertedWith('UNAUTHORIZED_RECIPIENT');
+    });
+
+    it('Should Fail -  Distribute Leftover to Blacklist Wallet', async function () {
+      await leftOverTreasury.addEligibleWallet(testWallet2.address);
+      const totalBlacklistedWalletsBefore =
+        await leftOverTreasury.getBlacklistCount();
+      await leftOverTreasury.addBlacklistWallets([testWallet2.address]);
+
+      expect(await leftOverTreasury.getBlacklistCount()).to.equal(
+        totalBlacklistedWalletsBefore.add(1)
+      );
+      await expect(
+        leftOverTreasury.distributeLeftOverToWallet(testWallet2.address)
+      ).to.be.revertedWith('BLACKLISTED_RECIPIENT');
+
+      //remove blacklist wallet
+      await leftOverTreasury.removeBlacklistWallet([testWallet2.address]);
     });
     it('Should Fail -  Already received leftover', async function () {
       await expect(

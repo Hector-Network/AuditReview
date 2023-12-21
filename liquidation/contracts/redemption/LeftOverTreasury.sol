@@ -19,6 +19,7 @@ error UNAUTHORIZED_RECIPIENT();
 error UNAUTHORIZED_TOKEN();
 error WALLET_ALREADY_RECEIVED_LEFTOVER();
 error NO_WALLETS_TO_DISTRIBUTE();
+error BLACKLISTED_RECIPIENT();
 
 contract LeftOverTreasury is
     LockAccessControl, 
@@ -38,6 +39,9 @@ contract LeftOverTreasury is
 
     /// @notice Deposited tokens set
     EnumerableSet.AddressSet private tokensSet;
+
+    /// @notice A list of blacklisted wallets
+    EnumerableSet.AddressSet private blacklistedWallets;
 
     uint256 public amountPerWallet;
 
@@ -137,10 +141,10 @@ contract LeftOverTreasury is
      */
     function _distributeLeftOverToWallet(address recipient)  internal
     {
-
         if (recipient == address(0)) revert INVALID_ADDRESS();
         if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
         if (leftoverWallets.contains(recipient)) revert WALLET_ALREADY_RECEIVED_LEFTOVER();
+        if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
 
         recipientTokens[recipient] += amountPerWallet;
 
@@ -187,15 +191,19 @@ contract LeftOverTreasury is
     function _addEligibleWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (!eligibleWallets.contains(wallet)) 
+        if (!eligibleWallets.contains(wallet)) {
             status = eligibleWallets.add(wallet);
+            if (!status) revert INVALID_WALLET();
+        }
     }
 
     function _addLeftOverWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (!leftoverWallets.contains(wallet)) 
+        if (!leftoverWallets.contains(wallet)) {
             status = leftoverWallets.add(wallet);
+            if (!status) revert INVALID_WALLET();
+        }
     }
 
     /**
@@ -229,18 +237,43 @@ contract LeftOverTreasury is
     function _removeEligibleWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (eligibleWallets.contains(wallet)) 
+        if (eligibleWallets.contains(wallet)) {
             status = eligibleWallets.remove(wallet);
-
+            if (!status) revert INVALID_WALLET();
+        }
     }
 
     function _removeLeftOverWallet(address wallet) internal {
         if (wallet == address(0)) revert INVALID_ADDRESS();
         bool status;
-        if (leftoverWallets.contains(wallet)) 
+        if (leftoverWallets.contains(wallet)) {
             status = leftoverWallets.remove(wallet);
-
+            if (!status) revert INVALID_WALLET();
+        }
     }
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _addBlacklistWallet(address _wallet) private {
+        if (_wallet == address(0) || blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.add(_wallet);
+        if (!status) revert INVALID_WALLET();
+	}
+
+     /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _removeBlacklistWallet(address _wallet) private {
+        //check for duplicate
+        if (_wallet == address(0) || !blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.remove(_wallet);
+        if (!status) revert INVALID_WALLET();
+	}
 
     function updateAmountPerWallet(uint256 _amount) external onlyModerator {
         amountPerWallet = _amount;
@@ -309,4 +342,47 @@ contract LeftOverTreasury is
     function getEligibleWalletAtIndex(uint16 index) external view returns (address) {
         return eligibleWallets.at(index);
     }
+
+     /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function addBlacklistWallets(address[] memory _wallets) external onlyModerator {
+        uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _addBlacklistWallet(_wallets[i]);
+        }
+	}
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function removeBlacklistWallet(address[] memory _wallets) external onlyModerator {
+       uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _removeBlacklistWallet(_wallets[i]);
+        }
+	}
+
+     /// @notice Returns all blacklisted wallets
+    function getAllBlackListed() external view returns (address[] memory) {
+        return blacklistedWallets.values();
+    }
+
+    /**
+        @notice return if recipient is blaclisted
+        @param recipient address
+        @return bool
+     */
+	function isBlacklisted(address recipient) external view returns (bool) {
+		return blacklistedWallets.contains(recipient);
+	}
+
+    /// @notice Returns the count of redeemed wallets
+	function getBlacklistCount() external view returns (uint256) {
+		return blacklistedWallets.length();
+	}
 }
