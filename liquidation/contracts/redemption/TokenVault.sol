@@ -16,6 +16,7 @@ error INVALID_WALLET();
 error INVALID_BALANCE();
 error INVALID_RECIPIENT();
 error UNAUTHORIZED_RECIPIENT();
+error BLACKLISTED_RECIPIENT();
 
 contract TokenVault is
     ITokenVault,
@@ -33,6 +34,9 @@ contract TokenVault is
 
     // @notice list of wallets qualified to receive tokens
     EnumerableSet.AddressSet private eligibleWallets;
+
+    /// @notice A list of blacklisted wallets
+    EnumerableSet.AddressSet private blacklistedWallets;
 
     /* ======= CONSTRUCTOR ======= */
 
@@ -67,6 +71,7 @@ contract TokenVault is
         returns (uint256)
     {
         if (recipient == address(0)) revert INVALID_ADDRESS();
+        if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
         if (rnftConfig.redeemableAmount == 0 ||
             (rnftConfig.eligibleTORAmount == 0 && 
             rnftConfig.eligibleHECAmount == 0)) revert INVALID_AMOUNT();
@@ -98,6 +103,7 @@ contract TokenVault is
         IRedemptionNFT rnft = getRNFT();
 
         if (rnft.ownerOf(rnftId) != recipient || rnft.balanceOf(recipient) == 0) revert INVALID_RECIPIENT();
+        if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
 
         RedeemNFTConfig memory rnftConfig = rnfts[rnftId];
 
@@ -160,6 +166,7 @@ contract TokenVault is
         if (recipient == address(0)) revert INVALID_ADDRESS();
         if (redeemAmount == 0) revert INVALID_AMOUNT();
         if (!eligibleWallets.contains(recipient)) revert UNAUTHORIZED_RECIPIENT();
+        if (blacklistedWallets.contains(recipient)) revert BLACKLISTED_RECIPIENT();
 
         RedeemNFTConfig memory rnftConfig = RedeemNFTConfig({
             eligibleTORAmount: 1,
@@ -257,6 +264,29 @@ contract TokenVault is
         }
     }
 
+    /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _addBlacklistWallet(address _wallet) private {
+        if (_wallet == address(0) || blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.add(_wallet);
+        if (!status) revert INVALID_WALLET();
+	}
+
+     /**
+        @notice add blacklist wallet 
+        @param _wallet  wallet address
+     */
+    function _removeBlacklistWallet(address _wallet) private {
+        //check for duplicate
+        if (_wallet == address(0) || !blacklistedWallets.contains(_wallet)) revert INVALID_WALLET();
+
+        bool status = blacklistedWallets.remove(_wallet);
+        if (!status) revert INVALID_WALLET();
+	}
+
     ///////////////////////////////////////////////////////
     //                  VIEW FUNCTIONS                   //
     ///////////////////////////////////////////////////////
@@ -300,4 +330,47 @@ contract TokenVault is
     function getEligibleWalletAtIndex(uint16 index) external view returns (address) {
         return eligibleWallets.at(index);
     }
+
+     /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function addBlacklistWallets(address[] memory _wallets) external onlyModerator {
+        uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _addBlacklistWallet(_wallets[i]);
+        }
+	}
+
+    /**
+        @notice add blacklist wallet 
+        @param _wallets  wallet address
+     */
+    function removeBlacklistWallet(address[] memory _wallets) external onlyModerator {
+       uint256 length = _wallets.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            _removeBlacklistWallet(_wallets[i]);
+        }
+	}
+
+     /// @notice Returns all blacklisted wallets
+    function getAllBlackListed() external view returns (address[] memory) {
+        return blacklistedWallets.values();
+    }
+
+    /**
+        @notice return if recipient is blaclisted
+        @param recipient address
+        @return bool
+     */
+	function isBlacklisted(address recipient) external view returns (bool) {
+		return blacklistedWallets.contains(recipient);
+	}
+
+    /// @notice Returns the count of redeemed wallets
+	function getBlacklistCount() external view returns (uint256) {
+		return blacklistedWallets.length();
+	}
 }
